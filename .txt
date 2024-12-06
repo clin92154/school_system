@@ -1,0 +1,2 @@
+python manage.py graph_models -a --dot -o erd.dot
+dot -Tpng erd.dot -o erd.png
