@@ -17,7 +17,7 @@ import inspect
 
 class UserProfileTests(APITestCase):
     def setUp(self):
-        # 創建一個測試用戶
+        # 建立一個測試用戶
         self.user = User.objects.create_user(
             user_id='U001',
             name='Test User',
@@ -48,7 +48,7 @@ class UserProfileTests(APITestCase):
 
 class ResetPasswordTests(APITestCase):
     def setUp(self):
-        # 創建一個測試用戶
+        # 建立一個測試用戶
         self.user = User.objects.create_user(
             user_id='U002',
             name='Test User 2',
@@ -69,7 +69,7 @@ class ResetPasswordTests(APITestCase):
 
 class AuthenticationTests(APITestCase):
     def setUp(self):
-        # 創建一個測試用戶，並正確設置密碼
+        # 建立一個測試用戶，並正確設置密碼
         self.user = User.objects.create(
             user_id='T111',
             name='Teacher 1',
@@ -118,7 +118,7 @@ class AuthenticationTests(APITestCase):
 class CategoryListViewTest(APITestCase):
 
     def setUp(self):
-        # 創建用戶和角色
+        # 建立用戶和角色
         self.user = User.objects.create_user(
             user_id='U001',
             name='Test User',
@@ -130,7 +130,7 @@ class CategoryListViewTest(APITestCase):
         refresh = RefreshToken.for_user(self.user)
         self.client.credentials(HTTP_AUTHORIZATION='Bearer ' + str(refresh.access_token))
 
-        # 創建分類
+        # 建立分類
         self.parent_category = Category.objects.create(name='Parent Category', roles='teachers')
         self.child_category = Category.objects.create(name='Child Category', roles='teachers', parent_category=self.parent_category)
 
@@ -151,7 +151,7 @@ class CategoryListViewTest(APITestCase):
 
 class LeaveApplicationTests(APITestCase):
     def setUp(self):
-        # 創建一個測試用的學生用戶
+        # 建立一個測試用的學生用戶
         self.user = User.objects.create_user(
             user_id='S001',
             name='Student User',
@@ -162,7 +162,7 @@ class LeaveApplicationTests(APITestCase):
         self.token = str(RefreshToken.for_user(self.user).access_token)
         self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.token}')
 
-        # 創建請假類型和節次
+        # 建立請假類型和節次
         self.leave_type = LeaveType.objects.create(type_name='Sick Leave')
         self.period = Period.objects.create(period_number=1, begin_time='09:00', end_time='10:00')
 
@@ -239,14 +239,14 @@ class LeaveApplicationTests(APITestCase):
 
 class LeaveApplicationTeacherTests(APITestCase):
     def setUp(self):
-        # 創建一個測試用的班級
+        # 建立一個測試用的班級
         self.class_obj = Class.objects.create(
             class_name='A',
             grade=3,
             year=2024
         )
 
-        # 創建一個測試用的學生用戶
+        # 建立一個測試用的學生用戶
         self.student_user = User.objects.create_user(
             user_id='SS01',
             name='Student123',
@@ -257,7 +257,7 @@ class LeaveApplicationTeacherTests(APITestCase):
         )
         self.student_token = str(RefreshToken.for_user(self.student_user).access_token)
 
-        # 創建一個測試用的老師用戶
+        # 建立一個測試用的老師用戶
         self.teacher_user = User.objects.create_user(
             user_id='TT01',
             name='Teacher123',
@@ -268,7 +268,7 @@ class LeaveApplicationTeacherTests(APITestCase):
         )
         self.teacher_token = str(RefreshToken.for_user(self.teacher_user).access_token)
 
-        # 創建請假類型和節次
+        # 建立請假類型和節次
         self.leave_type = LeaveType.objects.create(type_name='Sick Leave')
         self.period = Period.objects.create(period_number=1, begin_time='09:00', end_time='10:00')
 
@@ -355,18 +355,6 @@ class LeaveApplicationTeacherTests(APITestCase):
     #     response = self.client.post(url, data, format='json')
     #     self.assertEqual(response.status_code, status.HTTP_201_CREATED)
     #     leave_id = response.data['leave_id']
-
-    #     # 學生修改請假申請
-    #     url = f'/api/leave-manage/{leave_id}/'
-    #     data = {
-    #         'leave_type_id': self.leave_type.id,
-    #         'reason': 'Updated reason',
-    #         'start_datetime': '2024-11-26',
-    #         'end_datetime': '2024-11-26'
-    #     }
-    #     response = self.client.put(url, data, format='json')
-    #     self.assertEqual(response.status_code, status.HTTP_200_OK)
-    #     self.assertEqual(response.data['detail'], 'Leave application updated successfully.')
 
     #     # 學生刪除請假申請
     #     response = self.client.delete(url, format='json')
@@ -492,28 +480,28 @@ class GradeManagementTests(APITestCase):
 
     def setUp(self):
 
-        # 創建班級
+        # 建立班級
         self.class_obj = Class.objects.create(
             class_name='A',
             grade=3,
             year=2024
         )
-        # 創建一個測試用的老師用戶
+        # 建立一個測試用的老師用戶
         self.teacher_user = User.objects.create_user(
             user_id='T001',
             name='Teacher One',
-            birthday=date(1985, 6, 15),
-            password='0615Test!',
+            birthday='2005-05-15',  # 添加生日字段
+            password='0515Test!',
             role='teacher'
         )
         self.teacher_token = str(RefreshToken.for_user(self.teacher_user).access_token)
 
-        # 創建一個測試用的學生用戶
+        # 建立一個測試用的學生用戶
         self.student_user = User.objects.create_user(
             user_id='S001',
             name='Student One',
-            birthday=date(2005, 4, 10),
-            password='0410Test!',
+            birthday='2005-05-15' , # 添加生日字段
+            password='0515Test!',
             role='student',
             class_name=self.class_obj
         )
@@ -521,19 +509,19 @@ class GradeManagementTests(APITestCase):
 
 
 
-        # 創建學期
+        # 建立學期
         self.semester = Semester.objects.create(semester_id='2024A', year=2024, begin_time='2024-11-26',final_time='2025-06-09',term='A')
 
         # print(self.semester)
 
-        # 創建節次
+        # 建立節次
         self.period = Period.objects.create(
             period_number=1,
             begin_time='09:00',
             end_time='10:00'
         )
 
-        # 創建課程
+        # 建立課程
         self.course = Course.objects.create(
             course_name='Math',
             course_description='Basic Math Course',
@@ -589,3 +577,174 @@ class GradeManagementTests(APITestCase):
         self.assertEqual(len(response.data), 1)
         self.assertEqual(response.data[0]['student_id'], self.student_user.user_id)
         self.assertEqual(response.data[0]['rank'], 1)
+
+
+class GradeViewTests(APITestCase):
+
+    def setUp(self):
+        # 建立班級
+        self.class_obj = Class.objects.create(
+            class_name='A',
+            grade=3,
+            year=2024
+        )
+
+
+        # 建立測試學生
+        self.student_user = User.objects.create(
+            user_id='S001',
+            name='Student123',
+            birthday= date(2003, 5,15) , # 必須提供生日,
+            role='student',
+            class_name=self.class_obj
+        )
+        self.student_token = str(RefreshToken.for_user(self.student_user).access_token)
+        # Create class, semester, and periods
+
+        self.period1 = Period.objects.create(period_number=1, begin_time='09:00', end_time='10:00')
+        self.period2 = Period.objects.create(period_number=2, begin_time='10:00', end_time='11:00')
+
+        # 建立一個測試用的老師用戶
+        self.teacher_user = User.objects.create_user(
+            user_id='TT01',
+            name='Teacher123',
+            birthday=date(1980, 7, 15),
+            password='testpassword123',
+            role='teacher',
+            class_name=self.class_obj
+        )
+        # self.teacher_token = str(RefreshToken.for_user(self.teacher_user).access_token)
+
+        # 建立學期
+        self.semester = Semester.objects.create(
+            semester_id='2024A', 
+            year=2024, 
+            begin_time='2024-11-26',
+            final_time='2025-06-09',
+            term='A')
+
+        self.semester1 = Semester.objects.create(
+            semester_id='2024B', 
+            year=2025, 
+            begin_time='2025-12-26',
+            final_time='2026-06-09',
+            term='B')
+
+        # 建立課程
+        self.course1 = Course.objects.create(
+            # course_id='C101',
+            course_name='Math',
+            teacher_id=self.teacher_user,
+            class_id=self.class_obj,
+            course_description='Advanced Mathematics',
+            semester=self.semester,
+            day_of_week='Monday'
+        )
+
+        self.course2 = Course.objects.create(
+            # course_id=self.student.user_id,
+            class_id=self.class_obj,
+            teacher_id=self.teacher_user,
+            course_name='English',
+            course_description='Advanced English',
+            semester=self.semester,
+            day_of_week='Wednesday'
+        )
+
+
+
+
+
+
+        update_score = CourseStudent.objects.filter(course_id=self.course1,student_id=self.student_user,semester=self.semester)
+        update_score = update_score[0]
+        update_score.middle_score=80
+        update_score.final_score=90
+        update_score.save()
+     
+        update_score = CourseStudent.objects.filter(course_id=self.course2,student_id=self.student_user,semester=self.semester)
+        update_score = update_score[0]
+        update_score.middle_score=70
+        update_score.final_score=75
+        update_score.save()
+        
+
+        
+        
+        # CourseStudent.objects.update(
+        #     student_id=self.student_user,
+        #     course_id=self.course2,
+        #     semester=self.semester,
+        #     middle_score=70,
+        #     final_score=75,
+        #     average=72.5,
+        #     rank=2
+        # )
+
+    def test_semester_grades(self):
+        """測試學期成績查詢"""
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.student_token}')
+        url = f'/api/student/semester-grades/{self.semester.semester_id}/'
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn('grades', response.data)
+        self.assertEqual(len(response.data['grades']), 2)  # 應該有兩門課程
+        self.assertEqual(response.data['overall_average'], 78.75)  # 總平均分
+
+    def test_all_grades(self):
+
+        """測試學期成績查詢"""
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.student_token}')
+    
+        url = '/api/student/all-grades/'
+        response = self.client.get(url)
+        # print("API Response:", response.data)  # Debugging line
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn('grades_history', response.data)
+        self.assertEqual(len(response.data['grades_history']), 1)  # Expected one semester's data
+        self.assertEqual(response.data['grades_history'][0]['overall_average'], 78.75)
+
+    def test_all_grades_semester_in(self):
+        """測試歷年成績查詢"""
+
+
+        self.course3 = Course.objects.create(
+            class_id=self.class_obj,
+            teacher_id=self.teacher_user,
+            course_name='English 2',
+            course_description='easy English',
+            semester=self.semester1,
+            day_of_week='Wednesday'
+        )
+
+        self.course4 = Course.objects.create(
+            class_id=self.class_obj,
+            teacher_id=self.teacher_user,
+            course_name='Math 2',
+            course_description='easy math',
+            semester=self.semester1,
+            day_of_week='Monday'
+        )
+
+        update_score = CourseStudent.objects.filter(course_id=self.course3,student_id=self.student_user,semester=self.semester1)
+        update_score = update_score[0]
+        update_score.middle_score=80
+        update_score.final_score=90
+        update_score.save()
+
+        update_score = CourseStudent.objects.filter(course_id=self.course4,student_id=self.student_user,semester=self.semester1)
+        update_score = update_score[0]
+        update_score.middle_score=88
+        update_score.final_score=92
+        update_score.save()
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.student_token}')
+
+        url = '/api/student/all-grades/'
+        response = self.client.get(url)
+        # print(response)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn('grades_history', response.data)
+        self.assertEqual(len(response.data['grades_history']), 2)  # 應該有兩個學期
+        self.assertEqual(response.data['grades_history'][0]['overall_average'], 78.75)  # 第一學期平均分
+        self.assertEqual(response.data['grades_history'][1]['overall_average'], 87.5)  # 第二學期平均分

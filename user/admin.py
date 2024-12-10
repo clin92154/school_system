@@ -8,10 +8,10 @@ from django.utils.html import format_html
 
 class CustomUserAdmin(UserAdmin):
     model = User
-    list_display = ('user_id', 'name', 'role', 'is_active', 'birthday', 'semester')
+    list_display = ('user_id', 'name', 'first_name', 'last_name', 'role', 'is_active', 'birthday', 'semester')
     list_filter = ('role', 'is_active')
     fieldsets = (
-        (None, {'fields': ('user_id', 'password', 'name', 'birthday', 'role', 'gender', 'class_name', 'semester')}),
+        (None, {'fields': ('user_id', 'password', 'name', 'first_name', 'last_name', 'birthday', 'role', 'gender', 'class_name', 'semester')}),
         ('Permissions', {'fields': ('is_staff', 'is_active', 'is_superuser')}),
     )
     add_fieldsets = (

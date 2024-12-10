@@ -40,8 +40,9 @@ class UserManager(BaseUserManager):
 # 自定義 User 模型
 class User(AbstractUser):
     user_id = models.CharField(max_length=50, unique=True)  # 學號或員工編號
-    name = models.CharField(max_length=100)  # 用戶名
+    name = models.CharField(max_length=100)  # 用戶
     birthday = models.DateField()  # 生日
+    eng_name = models.CharField(max_length=100, null=True, blank=True)  # 英文
     semester = models.ForeignKey('Semester', on_delete=models.CASCADE, null=True, blank=True)  # 入職、入學學期
     role = models.CharField(max_length=10, choices=[('admin', 'Admin'), ('student', 'Student'), ('teacher', 'Teacher')])
     gender = models.CharField(max_length=10, choices=[('male', '男生'), ('female', '女生')])  # 性別
@@ -49,11 +50,12 @@ class User(AbstractUser):
     email = None  # 排除掉 email 欄位
     username = None  # 排除掉username
     USERNAME_FIELD = 'user_id'
-    REQUIRED_FIELDS = ['name', 'birthday']
+    REQUIRED_FIELDS = ['birthday']
 
     objects = UserManager()
 
     def save(self, *args, **kwargs):
+        self.name =f"{self.first_name}{self.last_name}"
         if not self.pk or not self.password:  # 如果是新建用戶或未設置密碼
             # 使用生日的月份和日期作為密碼的一部分
             month_day = self.birthday.strftime("%m%d")
@@ -71,6 +73,7 @@ class User(AbstractUser):
 
 # 班級模型
 class Class(models.Model):
+    
     # 確保班級名稱只能是單一的字母 A 到 Z
     class_name = models.CharField(
         max_length=1,
@@ -102,7 +105,7 @@ class Semester(models.Model):
     year = models.PositiveIntegerField(
         validators=[
             MinValueValidator(1900),  # 最小年份限制（可依需求修改）
-            MaxValueValidator(datetime.now().year)  # 最大年份限制為當前年份
+            # MaxValueValidator(datetime.now().year)  # 最大年份限制為當前年份
         ],
         help_text="請輸入年份，例如 2024"
     )    
@@ -137,7 +140,8 @@ class Course(models.Model):
 
     def save(self, *args, **kwargs):
         # 自動生成 course_id
-        self.course_id = get_random_string(length=8).upper()
+        if not(self.course_id):
+            self.course_id = get_random_string(length=8).upper()
 
         super().save(*args, **kwargs)
         # 自動為該班級的每個學生創建成績表
@@ -157,6 +161,13 @@ class CourseStudent(models.Model):
 
     def __str__(self):
         return f"{self.student_id} in {self.course_id}"
+
+    def save(self, *args, **kwargs):
+        # 自動生成 course_id
+        if self.middle_score and self.final_score:
+            self.average = (self.middle_score+self.final_score)/2
+
+        super().save(*args, **kwargs)
 
 class LeaveType(models.Model):
     type_name = models.CharField(max_length=50)  # 請假類型名稱

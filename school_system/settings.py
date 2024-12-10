@@ -24,10 +24,17 @@ SECRET_KEY = "django-insecure-iuwoax8#d4dzc0q8sw^vt9btp52=zsl5bv6)5ewd$+lzb!q0ot
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
-CORS_ALLOW_ALL_ORIGINS = True
 
 ALLOWED_HOSTS = ['*']
 
+CORS_ALLOW_METHODS = [
+    "GET",
+    "POST",
+    "PUT",
+    "DELETE",
+    "OPTIONS",
+]
+CORS_ALLOW_CREDENTIALS = True
 
 # Application definition
 
@@ -43,8 +50,8 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt.token_blacklist',
     'django_extensions',
     "user",
-    'corsheaders'
-
+    'corsheaders',
+    'drf_yasg',
 ]
 
 MIDDLEWARE = [
@@ -60,7 +67,7 @@ MIDDLEWARE = [
 
 AUTH_PASSWORD_VALIDATORS = []
 
-# CORS_ALLOW_ALL_ORIGINS = True  # 或者指定 CORS_ALLOW_ORIGINS 列表
+CORS_ALLOW_ALL_ORIGINS = True  # 或者指定 CORS_ALLOW_ORIGINS 列表
 
 ROOT_URLCONF = "school_system.urls"
 APPEND_SLASH = False

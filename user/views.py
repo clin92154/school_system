@@ -10,8 +10,9 @@ from django.views import View
 from django.contrib.auth.hashers import make_password
 from django.utils.crypto import get_random_string
 from django.db.models import Q
-
+from .models import User, Course, Semester
 from .models import *
+
 
 # API View for Categories
 class CategoryListView(APIView):
@@ -38,6 +39,7 @@ class LoginView(APIView):
     def post(self, request):
         user_id = request.data.get('user_id')
         password = request.data.get('password')
+        print(user_id,password)
 
         # 驗證用戶
         user = authenticate(request, user_id=user_id, password=password)
@@ -46,6 +48,13 @@ class LoginView(APIView):
             refresh = RefreshToken.for_user(user)
             role = user.role
 
+            print({
+                'refresh': str(refresh),
+                'access': str(refresh.access_token),
+                'role': role,
+                'name': user.name,
+                'user_id': user.user_id
+            })
             return Response({
                 'refresh': str(refresh),
                 'access': str(refresh.access_token),
@@ -102,44 +111,44 @@ class GuardianView(APIView):
         phone_num = request.data.get('phone_num')
         relationship = request.data.get('relationship')
         address = request.data.get('address')
-        guardian = Guardian.objects.create(
+        guardian = Guardian.objects.update_or_create(
             student=user,
             name=name,
             phone_number=phone_num,
             relationship=relationship,
             address=address,
         )
-        return Response({'detail': 'guardian created successfully.', 'guardian_id': guardian.guardian_id}, status=status.HTTP_201_CREATED)
+        print(guardian)
+        return Response({'detail': 'guardian created successfully.'}, status=status.HTTP_201_CREATED)
 
 
     def get(self, request):
         user = request.user
+        guardian = Guardian.objects.get(student=user)
         data = {
-            'user_id': user.user_id,
-            'name': user.name,
-            'role': user.role,
-            'semester': user.semester.semester_id if user.semester else None,
-            'gender': user.gender,
-            'birthday': user.birthday,
-            'class_name': user.class_name.class_name if user.class_name else None
+            'name': guardian.name,
+            'guardian_id': guardian.guardian_id,
+            'phone_number': guardian.phone_number,
+            'relationship': guardian.relationship,
+            'address': guardian.address
         }
         return Response(data, status=status.HTTP_200_OK)
 
-    def put(self, request):
-        user = request.user
-        name = request.data.get('name')
-        gender = request.data.get('gender')
-        birthday = request.data.get('birthday')
+    # def put(self, request):
+    #     user = request.user
+    #     name = request.data.get('name')
+    #     gender = request.data.get('gender')
+    #     birthday = request.data.get('birthday')
 
-        if name:
-            user.name = name
-        if gender:
-            user.gender = gender
-        if birthday:
-            user.birthday = birthday
+    #     if name:
+    #         user.name = name
+    #     if gender:
+    #         user.gender = gender
+    #     if birthday:
+    #         user.birthday = birthday
 
-        user.save()
-        return Response({'detail': 'Profile updated successfully'}, status=status.HTTP_200_OK)
+    #     user.save()
+    #     return Response({'detail': 'Profile updated successfully'}, status=status.HTTP_200_OK)
 
 # 個人檔案設定 API
 class UserProfileView(APIView):
@@ -150,6 +159,9 @@ class UserProfileView(APIView):
         data = {
             'user_id': user.user_id,
             'name': user.name,
+            'first_name': user.first_name,
+            'last_name': user.last_name,
+            'eng_name':user.eng_name,
             'role': user.role,
             'semester': user.semester.semester_id if user.semester else None,
             'gender': user.gender,
@@ -160,17 +172,22 @@ class UserProfileView(APIView):
 
     def put(self, request):
         user = request.user
-        name = request.data.get('name')
+        first_name = request.data.get('first_name')
+        eng_name = request.data.get('eng_name')
+        last_name = request.data.get('last_name')
         gender = request.data.get('gender')
         birthday = request.data.get('birthday')
-
-        if name:
-            user.name = name
+        if eng_name:
+            user.eng_name = eng_name
+        if first_name:
+            user.first_name = first_name
+        if last_name:
+            user.last_name = last_name
         if gender:
             user.gender = gender
         if birthday:
             user.birthday = birthday
-
+        print(user.eng_name)
         user.save()
         return Response({'detail': 'Profile updated successfully'}, status=status.HTTP_200_OK)
 
@@ -259,7 +276,7 @@ class LeaveListView(APIView):
                 # 老師查詢所屬班級所有學生的請假申請
                 if user.class_name:
                     students = User.objects.filter(class_name=user.class_name, role='student')
-                    leave_applications = LeaveApplication.objects.filter(student__in=students)
+                    leave_applications = LeaveApplication.objects.filter(student__in=students).order_by("-apply_date","status")
                     data = [
                         {
                             'leave_id': leave.leave_id,
@@ -277,7 +294,7 @@ class LeaveListView(APIView):
 
             elif user.role == 'student':
                 # 學生查詢自己的請假申請
-                leave_applications = LeaveApplication.objects.filter(student=user)
+                leave_applications = LeaveApplication.objects.filter(student=user).order_by("-apply_date","status")
                 data = [
                     {
                         'leave_id': leave.leave_id,
@@ -380,11 +397,11 @@ class CourseManagementView(APIView):
                 'course_name': courses.course_name,
                 'course_description': courses.course_description,
                 'teacher_name': courses.teacher_id.name,
-                'class': f"{courses.class_id.grade} 年 {courses.class_id.class_name} 班",
+                'class': {'id':courses.class_id.class_id,'name':f"{courses.class_id.grade} 年 {courses.class_id.class_name} 班",},
                 'semester': courses.semester.semester_id,
                 'day_of_week': courses.day_of_week,
                 'periods': [p.period_number for p in courses.period.all()]
-            }
+                }
             
         return Response(data, status=status.HTTP_200_OK)
     # 新增課程
@@ -418,7 +435,6 @@ class CourseManagementView(APIView):
         period_objs = Period.objects.filter(id__in=periods)
         if period_objs.count() != len(periods):
             return Response({'detail': 'One or more periods are invalid.'}, status=status.HTTP_400_BAD_REQUEST)
-
         # 驗證是否衝堂
         conflicting_courses = Course.objects.filter(
             Q(teacher_id=user) & Q(semester=semester) & Q(period__in=period_objs) & Q(day_of_week=day_of_week)
@@ -459,6 +475,7 @@ class CourseManagementView(APIView):
 
         # 驗證學期、班級是否存在
         try:
+            print(semester_id,class_id)
             semester = Semester.objects.get(semester_id=semester_id)
             class_obj = Class.objects.get(class_id=class_id)
         except (Semester.DoesNotExist, Class.DoesNotExist):
@@ -502,6 +519,47 @@ class ClassListView(APIView):
         data = [{'class_id': c.class_id, 'class_name': c.class_name, 'grade': c.grade, 'year': c.year} for c in classes]
         return Response(data, status=status.HTTP_200_OK)
 
+class ClassStudentListView(APIView):
+    permission_classes = (IsAuthenticated,)
+
+    def get(self, request, class_id):
+        try:
+            class_obj = Class.objects.get(class_id=class_id)
+        except Class.DoesNotExist:
+            return Response({'detail': 'Class not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        students = User.objects.filter(class_name=class_obj, role='student')
+        student_data = [
+            {
+                'student_id': student.user_id,
+                'name': student.name,
+                'gender': student.gender,
+                'birthday': student.birthday,
+            } for student in students
+        ]
+        return Response({'students': student_data}, status=status.HTTP_200_OK)
+
+
+class StudentDetailView(APIView):
+    permission_classes = (IsAuthenticated,)
+
+    def get(self, request, student_id):
+        try:
+            student = User.objects.get(user_id=student_id, role='student')
+        except User.DoesNotExist:
+            return Response({'detail': 'Student not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        student_data = {
+            'student_id': student.user_id,
+            'name': student.name,
+            'gender': student.gender,
+            'birthday': student.birthday,
+            'class_name': student.class_name.class_name if student.class_name else None,
+            'grade': student.class_name.grade if student.class_name else None,
+        }
+        return Response(student_data, status=status.HTTP_200_OK)
+
+
 # API to get list of days in a week
 class DaysOfWeekView(APIView):
     permission_classes = (IsAuthenticated,)
@@ -524,6 +582,8 @@ class CourseListView(APIView):
 
     def get(self, request):
         user = request.user
+        semester_id = request.query_params.get('semester_id')  # 從查詢參數中獲取 semester_id
+
         # 根據用戶的角色過濾課程
         if user.role == 'teacher':
             courses = Course.objects.filter(teacher_id=user)
@@ -531,6 +591,15 @@ class CourseListView(APIView):
             courses = Course.objects.filter(class_id=user.class_name)
         else:
             courses = Course.objects.none()  # 管理員等其他角色預設不提供課程列表
+
+
+        # 如果提供了 semester_id，進一步過濾課程
+        if semester_id:
+            try:
+                semester = Semester.objects.get(semester_id=semester_id)
+                courses = courses.filter(semester=semester)
+            except Semester.DoesNotExist:
+                return Response({'detail': 'Semester not found.'}, status=status.HTTP_404_NOT_FOUND)
 
         data = [
             {
@@ -587,8 +656,8 @@ class StudentGradeView(APIView):
 
     def get(self, request):
         user = request.user
-        if user.role != 'student':
-            return Response({'detail': 'Only students can view their grades.'}, status=status.HTTP_403_FORBIDDEN)
+        # if user.role != 'student':
+        #     return Response({'detail': 'Only students can view their grades.'}, status=status.HTTP_403_FORBIDDEN)
 
         course_students = CourseStudent.objects.filter(student_id=user)
         data = []
@@ -633,3 +702,113 @@ class ClassGradeRankView(APIView):
             })
 
         return Response(data, status=status.HTTP_200_OK)
+
+class ScheduleView(APIView):
+    permission_classes = (IsAuthenticated,)
+
+    def get(self, request, semester_id):
+        user = request.user
+        try:
+            semester = Semester.objects.get(semester_id=semester_id)
+        except Semester.DoesNotExist:
+            return Response({'detail': 'Semester not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        # 根據使用者角色顯示對應課表
+        if user.role == 'student':
+            courses = Course.objects.filter(class_id=user.class_name, semester=semester)
+        elif user.role == 'teacher':
+            courses = Course.objects.filter(teacher_id=user, semester=semester)
+        else:
+            return Response({'detail': 'Only students and teachers can view schedules.'}, status=status.HTTP_403_FORBIDDEN)
+
+        course_data = [
+            {
+                'course_id': course.course_id,
+                'course_name': course.course_name,
+                'course_description': course.course_description,
+                'day_of_week': course.day_of_week,
+                'periods': [period.period_number for period in course.period.all()]
+            } for course in courses
+        ]
+
+        return Response({'schedule': course_data}, status=status.HTTP_200_OK)
+
+
+class SemesterGradeView(APIView):
+    permission_classes = (IsAuthenticated,)
+
+    def get(self, request, semester_id):
+        user = request.user
+        if user.role != 'student':
+            return Response({'detail': 'Only students can view their grades.'}, status=status.HTTP_403_FORBIDDEN)
+
+        try:
+            semester = Semester.objects.get(semester_id=semester_id)
+        except Semester.DoesNotExist:
+            return Response({'detail': 'Semester not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        course_students = CourseStudent.objects.filter(student_id=user, semester=semester)
+        if not course_students:
+            return Response({'detail': 'No grades found for the selected semester.'}, status=status.HTTP_404_NOT_FOUND)
+
+        total_score = 0
+        total_courses = 0
+        data = []
+        for course_student in course_students:
+            total_score += course_student.average or 0
+            total_courses += 1
+            data.append({
+                'course_name': course_student.course_id.course_name,
+                'middle_score': course_student.middle_score,
+                'final_score': course_student.final_score,
+                'average': course_student.average,
+                'rank': course_student.rank,
+            })
+
+        overall_average = total_score / total_courses if total_courses > 0 else None
+
+        print({'grades': data, 'overall_average': overall_average})
+
+        return Response({'grades': data, 'overall_average': overall_average}, status=status.HTTP_200_OK)
+
+
+class AllSemesterGradeView(APIView):
+    permission_classes = (IsAuthenticated,)
+
+    def get(self, request):
+        user = request.user
+        if user.role != 'student':
+            return Response({'detail': 'Only students can view their grades.'}, status=status.HTTP_403_FORBIDDEN)
+            
+        course_students = CourseStudent.objects.filter(student_id=user).order_by('semester__year', 'semester__term')
+        if not course_students:
+            return Response({'detail': 'No grades found'}, status=status.HTTP_404_NOT_FOUND)
+
+        semesters = {}
+        for course_student in course_students:
+            semester_key = f"{course_student.semester.year}-{course_student.semester.term}"
+            if semester_key not in semesters:
+                semesters[semester_key] = {
+                    'semester_id': course_student.semester.semester_id,
+                    'courses': [],
+                    'total_score': 0,
+                    'total_courses': 0,
+                }
+            semesters[semester_key]['courses'].append({
+                'course_name': course_student.course_id.course_name,
+                'middle_score': course_student.middle_score,
+                'final_score': course_student.final_score,
+                'average': course_student.average,
+            })
+            semesters[semester_key]['total_score'] += course_student.average or 0
+            semesters[semester_key]['total_courses'] += 1
+
+        result = []
+        for semester, details in semesters.items():
+            result.append({
+                'semester': semester,
+                'courses': details['courses'],
+                'overall_average': details['total_score'] / details['total_courses'] if details['total_courses'] > 0 else None
+            })
+
+        return Response({'grades_history': result}, status=status.HTTP_200_OK)
