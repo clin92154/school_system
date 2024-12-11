@@ -1,26 +1,25 @@
-from django.contrib.auth.management.commands.createsuperuser import Command as BaseCreateSuperuserCommand
+from django.contrib.auth.management.commands.createsuperuser import Command as BaseCommand
 from django.core.management import CommandError
 from user.models import User
 
-class Command(BaseCreateSuperuserCommand):
-    help = 'Create a superuser with user_id and password, no email required.'
+class Command(BaseCommand):
+    help = '創建超級用戶'
 
     def add_arguments(self, parser):
-        super().add_arguments(parser)
-        parser.add_argument('--user_id', required=True, help='Specifies the user ID for the superuser.')
-        parser.add_argument('--first_name', required=True, help='Specifies the first_name for the superuser.')
-        parser.add_argument('--last_name', required=True, help='Specifies the last_name for the superuser.')
-        parser.add_argument('--password', required=True, help='Specifies the password for the superuser.')
+        parser.add_argument('--user_id', required=True, help='指定超級用戶的 ID')
+        parser.add_argument('--first_name', required=True, help='指定超級用戶的姓')
+        parser.add_argument('--last_name', required=True, help='指定超級用戶的名')
+        parser.add_argument('--password', required=True, help='指定超級用戶的密碼')
+        parser.add_argument('--birthday', required=True, help='指定超級用戶的密碼')
 
     def handle(self, *args, **options):
-        user_id = options.get('user_id')
-        # name = options.get('name')
-        first_name = options.get('first_name')
-        last_name = options.get('last_name')
-        password = options.get('password')
-
+        user_id = options['user_id']
+        first_name = options['first_name']
+        last_name = options['last_name']
+        password = options['password']
+        birthday = options['birthday']
         if User.objects.filter(user_id=user_id).exists():
-            raise CommandError(f'User with user_id "{user_id}" already exists.')
+            raise CommandError(f'user_id "{user_id}" is exist！')
 
-        superuser = User.objects.create_superuser(user_id=user_id, password=password, name="Admin")
-        self.stdout.write(self.style.SUCCESS(f'Superuser "{user_id}" created successfully.'))
+        User.objects.create_superuser(user_id=user_id, first_name=first_name,last_name=last_name, password=password,birthday=birthday)
+        self.stdout.write(self.style.SUCCESS(f'superuser "{user_id}" created successfully'))

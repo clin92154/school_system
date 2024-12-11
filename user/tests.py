@@ -28,7 +28,8 @@ class UserProfileTests(APITestCase):
         # 建立一個測試用戶
         self.user = User.objects.create_user(
             user_id='U001',
-            name='Test User',
+            first_name='Test',
+            last_name= ' User',
             birthday=date(1995, 5, 15),
             role='student',
             password='0515Test!',
@@ -46,7 +47,7 @@ class UserProfileTests(APITestCase):
 
     def test_update_user_profile(self):
         url = '/api/profile/'  
-        data = {'name': 'Updated User', 'gender': 'male', 'birthday': '1995-06-20'}
+        data = {'first_name': 'Updated','last_name':'User', 'gender': 'male', 'birthday': '1995-06-20'}
         response = self.client.put(url, data)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.user.refresh_from_db()
@@ -175,6 +176,7 @@ class LeaveApplicationTests(APITestCase):
         self.period = Period.objects.create(period_number=1, begin_time='09:00', end_time='10:00')
 
     def test_create_leave_application(self):
+        """/api/leaving-application/"""
         url = '/api/leaving-application/'
         data = {
             'leave_type_id': self.leave_type.id,
@@ -281,7 +283,8 @@ class LeaveApplicationTeacherTests(APITestCase):
         self.period = Period.objects.create(period_number=1, begin_time='09:00', end_time='10:00')
 
     def test_list_leave_applications_as_teacher(self):
-        # 學生申請請假
+        # 學生申請請假 
+        """POST /api/leaving-application/"""
         self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.student_token}')
         url = '/api/leaving-application/'
         data = {
@@ -305,6 +308,9 @@ class LeaveApplicationTeacherTests(APITestCase):
         self.assertEqual(response.data['leave_list'][0]['leave_type'], self.leave_type.type_name)
 
     def test_leave_detail_view(self):
+        """post '/api/leaving-application/'"""
+        """GET '/api/leaving-detail/{leave_id}'"""
+
         # 學生申請請假
         self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.student_token}')
         url = '/api/leaving-application/'
@@ -393,12 +399,12 @@ class CourseManagementTests(APITestCase):
         self.period2 = Period.objects.create(period_number=2, begin_time='10:00', end_time='11:00')
 
     def test_create_course(self):
-        
+        """POST course/manage/"""
         url = reverse('course-management')
         data = {
             'course_name': 'Math 101',
             'course_description': 'Basic Mathematics',
-            'semester_id': self.semester.semester_id,
+            'semester_id': self.semester.semester_id, 
             'class_id': self.class_obj.class_id,
             'periods': [self.period1.id, self.period2.id],
             'day_of_week': 'Monday'
@@ -409,7 +415,7 @@ class CourseManagementTests(APITestCase):
         self.assertIn('course_id', response.data)
 
     def test_create_course_conflict(self):
-        
+        """POST course/manage/"""
         Course.objects.create(
             course_id='C001',
             course_name='Science 101',
@@ -434,8 +440,9 @@ class CourseManagementTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(response.data['detail'], 'Course schedule conflicts with another course.')
 
+    #更新課程
     def test_update_course(self):
-        
+        """PUT course/manage/<str:course_id>/"""
         course = Course.objects.create(
             course_name='History 101',
             course_description='World History',
@@ -465,8 +472,10 @@ class CourseManagementTests(APITestCase):
         self.assertEqual(course.course_name, 'Updated History 101')
         self.assertEqual(course.day_of_week, 'Wednesday')
 
+
+    #刪除課程
     def test_delete_course(self):
-        
+        """刪除課程 PUT course/manage/<str:course_id>/"""
         course = Course.objects.create(
             course_id='C003',
             course_name='Geography 101',
@@ -549,7 +558,10 @@ class GradeManagementTests(APITestCase):
             course_id=self.course,
             student_id=self.student_user
         )
+
+    #輸入課程成績
     def test_input_grades(self):
+        """course/<str:course_id>/grade-input/"""
         url = f'/api/course/{self.course.course_id}/grade-input/'
         self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.teacher_token}')
         data = {
@@ -570,7 +582,8 @@ class GradeManagementTests(APITestCase):
         self.assertEqual(self.course_student.average, 85)
 
     def test_student_view_grades(self):
-        url = '/api/student/grades/'
+        """列出單一學生成績"""  
+        url = '/api/student/grades/' 
         self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.student_token}')
         response = self.client.get(url, format='json')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -578,6 +591,7 @@ class GradeManagementTests(APITestCase):
         self.assertEqual(response.data[0]['course_name'], 'Math')
 
     def test_teacher_view_class_grades(self):
+        """course/<str:course_id>/class-grades/"""
         url = f'/api/course/{self.course.course_id}/class-grades/'
         self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.teacher_token}')
         response = self.client.get(url, format='json')
@@ -659,11 +673,6 @@ class GradeViewTests(APITestCase):
             day_of_week='Wednesday'
         )
 
-
-
-
-
-
         update_score = CourseStudent.objects.filter(course_id=self.course1,student_id=self.student_user,semester=self.semester)
         update_score = update_score[0]
         update_score.middle_score=80
@@ -702,7 +711,7 @@ class GradeViewTests(APITestCase):
 
     def test_all_grades(self):
 
-        """測試學期成績查詢"""
+        """測試歷年成績查詢"""
         self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.student_token}')
     
         url = '/api/student/all-grades/'

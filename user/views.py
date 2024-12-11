@@ -1,4 +1,4 @@
-from rest_framework.views import APIView
+# from rest_framework.views import GenericAPIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -13,15 +13,38 @@ from django.db.models import Q
 from .models import User, Course, Semester
 from .models import *
 from .serializers import *
+from rest_framework.generics import GenericAPIView
+from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiExample
+from drf_spectacular.types import OpenApiTypes
 
 #登入登出模組
 # 登入 API
-class LoginView(APIView):
+class LoginView(GenericAPIView):
+    serializer_class = LoginSerializer
+
+    @extend_schema(
+        request=LoginSerializer,
+        responses={
+            200: {
+                "type": "object",
+                "properties": {
+                    "refresh": {"type": "string"},
+                    "access": {"type": "string"},
+                    "role": {"type": "string"},
+                    "name": {"type": "string"},
+                    "user_id": {"type": "string"}
+                }
+            },
+            401: {"type": "object", "properties": {"detail": {"type": "string"}}}
+        },
+        description="使用者登入 API",
+        summary="使用者登入"
+    )
     def post(self, request):
-        serializer = LoginSerializer(data=request.data)
+        serializer = self.get_serializer(data=request.data)
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-            
+        
         user_id = serializer.validated_data['user_id']
         password = serializer.validated_data['password']
         
@@ -36,14 +59,30 @@ class LoginView(APIView):
                 'user_id': user.user_id
             }, status=status.HTTP_200_OK)
         return Response({'detail': 'Invalid credentials'}, 
-                      status=status.HTTP_401_UNAUTHORIZED)
+                        status=status.HTTP_401_UNAUTHORIZED)
 
 
 # 登出 API
 # 自定義登出 API
-class LogoutView(APIView):
+class LogoutView(GenericAPIView):
     permission_classes = (IsAuthenticated,)
+    serializer_class = None  # 登出不需要序列化器
 
+    @extend_schema(
+        request={
+            "type": "object",
+            "properties": {
+                "refresh": {"type": "string"}
+            },
+            "required": ["refresh"]
+        },
+        responses={
+            205: None,
+            400: {"type": "object", "properties": {"detail": {"type": "string"}}}
+        },
+        description="使用者登出 API",
+        summary="使用者登出"
+    )
     def post(self, request):
         try:
             refresh_token = request.data.get("refresh")
@@ -58,78 +97,119 @@ class LogoutView(APIView):
             return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
         
 # 重設密碼 API
-class ResetPasswordView(APIView):
+class ResetPasswordView(GenericAPIView):
     permission_classes = (IsAuthenticated,)
+    serializer_class = ResetPasswordSerializer
 
+    @extend_schema(
+        request=ResetPasswordSerializer,
+        responses={
+            200: {"type": "object", "properties": {"detail": {"type": "string"}}},
+            400: {"type": "object", "properties": {"detail": {"type": "string"}}}
+        },
+        description="重設使用者密碼",
+        summary="密碼重設"
+    )
     def post(self, request):
-        serializer = ResetPasswordSerializer(data=request.data)
+        serializer = self.get_serializer(data=request.data)
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
         user = request.user
         new_password = serializer.validated_data['new_password']
-
         try:
-            # 驗證新密碼是否符合規則
             validate_password(new_password, user)
-            
-            # 設置新密碼並儲存
             user.set_password(new_password)
             user.save()
-            
             return Response({'detail': '密碼重設成功'}, status=status.HTTP_200_OK)
-            
         except ValidationError as e:
             return Response({'detail': e}, status=status.HTTP_400_BAD_REQUEST)
 
 # 監護人視圖
-class GuardianView(APIView):
+class GuardianView(GenericAPIView):
     permission_classes = (IsAuthenticated,)
+    serializer_class = GuardianSerializer
 
+    @extend_schema(
+        responses={
+            200: GuardianSerializer,
+            404: {"type": "object", "properties": {"detail": {"type": "string"}}}
+        },
+        description="獲取監護人資料",
+        summary="查詢監護人資料"
+    )
     def get(self, request):
         try:
             guardian = Guardian.objects.get(student=request.user)
-            serializer = GuardianSerializer(guardian)
+            serializer = self.get_serializer(guardian)
             return Response(serializer.data, status=status.HTTP_200_OK)
         except Guardian.DoesNotExist as err:
             return Response({'detail': '找不到監護人資料'}, status=status.HTTP_404_NOT_FOUND)
 
+    @extend_schema(
+        request=GuardianSerializer,
+        responses={
+            200: {"type": "object", "properties": {"detail": {"type": "string"}}},
+            201: {
+                "type": "object",
+                "properties": {
+                    "detail": {"type": "string"},
+                    "guardian_id": {"type": "string"}
+                }
+            },
+            400: {"type": "object", "properties": {"detail": {"type": "string"}}}
+        },
+        description="新增或更新監護人資料",
+        summary="監護人資料管理"
+    )
     def post(self, request):
-        # 檢查是否已存在監護人資料
         try:
             guardian = Guardian.objects.get(student=request.user)
-            # 如果存在則更新
-            serializer = GuardianSerializer(guardian, data=request.data, partial=True)
+            serializer = self.get_serializer(guardian, data=request.data, partial=True)
             if serializer.is_valid():
                 serializer.save()
                 return Response({'detail': '監護人資料更新成功'}, status=status.HTTP_200_OK)
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         except Guardian.DoesNotExist:
-            # 如果不存在則創建
-            serializer = GuardianSerializer(data=request.data)
+            serializer = self.get_serializer(data=request.data)
             if not serializer.is_valid():
                 return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
             
             guardian = serializer.save(student=request.user)
-            return Response({'detail': '監護人資料創建成功','guardian_id':guardian.guardian_id}, status=status.HTTP_201_CREATED)
+            return Response({'detail': '監護人資料創建成功', 'guardian_id': guardian.guardian_id}, status=status.HTTP_201_CREATED)
 
 # 用戶檔案視圖
-class UserProfileView(APIView):
+class UserProfileView(GenericAPIView):
     permission_classes = (IsAuthenticated,)
+    serializer_class = UserProfileSerializer
 
+    @extend_schema(
+        responses={200: UserProfileSerializer},
+        description="獲取用戶個人資料",
+        summary="查詢個人資料"
+    )
     def get(self, request):
-        serializer = UserProfileSerializer(request.user)
+        serializer = self.get_serializer(request.user)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
+    @extend_schema(
+        request=UserProfileSerializer,
+        responses={
+            200: {"type": "object", "properties": {"detail": {"type": "string"}}},
+            400: {"type": "object", "properties": {"detail": {"type": "string"}}}
+        },
+        description="更新用戶個人資料",
+        summary="更新個人資料"
+    )
     def put(self, request):
-        serializer = UserProfileSerializer(request.user, data=request.data, partial=True)
+        serializer = self.get_serializer(request.user, data=request.data, partial=True)
         if serializer.is_valid():
             serializer.save()
             return Response({'detail': '個人資料更新成功'}, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 # 取得用戶名稱和 user_id API
-class UserInfoView(APIView):
+class UserInfoView(GenericAPIView):
     permission_classes = (IsAuthenticated,)
 
     def get(self, request):
@@ -149,7 +229,7 @@ class UserInfoView(APIView):
 
 
 # API View for Categories
-class CategoryListView(APIView):
+class CategoryListView(GenericAPIView):
     permission_classes = (IsAuthenticated,)
 
     def get(self, request):
@@ -173,15 +253,31 @@ class CategoryListView(APIView):
 
 
 # 學生請假申請 API
-class LeaveApplicationView(APIView):
-    permission_classes = (IsAuthenticated,)
+class LeaveApplicationView(GenericAPIView):
+    serializer_class = LeaveApplicationSerializer
 
+    @extend_schema(
+        request=LeaveApplicationSerializer,
+        responses={
+            201: {
+                "type": "object",
+                "properties": {
+                    "detail": {"type": "string"},
+                    "leave_id": {"type": "integer"}
+                }
+            },
+            400: {"type": "object", "properties": {"detail": {"type": "string"}}},
+            403: {"type": "object", "properties": {"detail": {"type": "string"}}}
+        },
+        description="學生請假申請 API",
+        summary="提交請假申請"
+    )
     def post(self, request):
         if request.user.role != 'student':
             return Response({'detail': 'Only students can apply for leave.'},
-                          status=status.HTTP_403_FORBIDDEN)
+                            status=status.HTTP_403_FORBIDDEN)
 
-        serializer = LeaveApplicationSerializer(data=request.data)
+        serializer = self.get_serializer(data=request.data)
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -192,75 +288,112 @@ class LeaveApplicationView(APIView):
         }, status=status.HTTP_201_CREATED)
 
 # 請假類型列表 API
-class LeaveTypeListView(APIView):
+class LeaveTypeListView(GenericAPIView):
+    @extend_schema(
+        responses={200: LeaveTypeSerializer(many=True)},
+        description="獲取所有請假類型",
+        summary="請假類型列表"
+    )
     def get(self, request):
         leave_types = LeaveType.objects.all()
         serializer = LeaveTypeSerializer(leave_types, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
-# 節次列表視圖
-class PeriodListView(APIView):
+# 節次列表 API
+class PeriodListView(GenericAPIView):
+    @extend_schema(
+        responses={200: PeriodSerializer(many=True)},
+        description="獲取所有課程節次",
+        summary="課程節次列表"
+    )
     def get(self, request):
         periods = Period.objects.all()
         serializer = PeriodSerializer(periods, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
-# 請假列表視圖
-class LeaveListView(APIView):
+# 請假列表 API
+class LeaveListView(GenericAPIView):
     permission_classes = (IsAuthenticated,)
+    serializer_class = LeaveListSerializer
 
+    @extend_schema(
+        responses={
+            200: LeaveListSerializer(many=True),
+            403: {"type": "object", "properties": {"detail": {"type": "string"}}}
+        },
+        description="獲取請假列表（教師可查看班級學生請假，學生可查看自己的請假）",
+        summary="請假列表查詢"
+    )
     def get(self, request):
         user = request.user
         if user.role == 'teacher':
             students = User.objects.filter(class_name=user.class_name, role='student')
-            leave_applications = LeaveApplication.objects.filter(student__in=students).order_by('status','apply_date',)
+            leave_applications = LeaveApplication.objects.filter(student__in=students).order_by('status', 'apply_date')
         elif user.role == 'student':
-            leave_applications = LeaveApplication.objects.filter(student=user).order_by('status','apply_date',)
+            leave_applications = LeaveApplication.objects.filter(student=user).order_by('status', 'apply_date')
         else:
             return Response({'detail': '您沒有權限查看請假申請'}, 
-                          status=status.HTTP_403_FORBIDDEN)
+                            status=status.HTTP_403_FORBIDDEN)
 
-        serializer = LeaveListSerializer(leave_applications, many=True)
+        serializer = self.get_serializer(leave_applications, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
-# 請假詳情視圖
-class LeaveDetailView(APIView):
+# 請假詳情 API
+class LeaveDetailView(GenericAPIView):
     permission_classes = (IsAuthenticated,)
+    serializer_class = LeaveDetailSerializer
 
+    @extend_schema(
+        responses={
+            200: LeaveDetailSerializer,
+            403: {"type": "object", "properties": {"detail": {"type": "string"}}},
+            404: {"type": "object", "properties": {"detail": {"type": "string"}}}
+        },
+        description="獲取請假申請詳細資訊",
+        summary="請假詳情查詢"
+    )
     def get(self, request, leave_id):
         try:
             leave_application = LeaveApplication.objects.get(leave_id=leave_id)
-            
-            # 權限檢查
             if request.user.role == 'student' and leave_application.student != request.user:
                 return Response({'detail': '您沒有權限查看此請假申請'}, 
-                              status=status.HTTP_403_FORBIDDEN)
+                                status=status.HTTP_403_FORBIDDEN)
             elif request.user.role == 'teacher' and leave_application.student.class_name != request.user.class_name:
                 return Response({'detail': '您沒有權限查看此請假申請'}, 
-                              status=status.HTTP_403_FORBIDDEN)
+                                status=status.HTTP_403_FORBIDDEN)
 
-            serializer = LeaveDetailSerializer(leave_application)
-            
+            serializer = self.get_serializer(leave_application)
             return Response(serializer.data, status=status.HTTP_200_OK)
         except LeaveApplication.DoesNotExist:
             return Response({'detail': '找不到請假申請'}, status=status.HTTP_404_NOT_FOUND)
 
-# 請假審核視圖
-class LeaveApprovalView(APIView):
+# 請假審核 API
+class LeaveApprovalView(GenericAPIView):
     permission_classes = (IsAuthenticated,)
+    serializer_class = LeaveApprovalSerializer
 
+    @extend_schema(
+        request=LeaveApprovalSerializer,
+        responses={
+            200: {"type": "object", "properties": {"detail": {"type": "string"}}},
+            403: {"type": "object", "properties": {"detail": {"type": "string"}}},
+            404: {"type": "object", "properties": {"detail": {"type": "string"}}}
+        },
+        description="教師審核請假申請",
+        summary="請假審核"
+    )
     def post(self, request, leave_id):
         if request.user.role != 'teacher':
             return Response({'detail': '只有老師可以審核請假申請'}, 
-                          status=status.HTTP_403_FORBIDDEN)
+                            status=status.HTTP_403_FORBIDDEN)
 
         try:
             leave_application = LeaveApplication.objects.get(leave_id=leave_id)
             if leave_application.student.class_name != request.user.class_name:
                 return Response({'detail': '您沒有權限審核此請假申請'}, 
-                              status=status.HTTP_403_FORBIDDEN)
+                                status=status.HTTP_403_FORBIDDEN)
 
-            serializer = LeaveApprovalSerializer(data=request.data)
+            serializer = self.get_serializer(data=request.data)
             if not serializer.is_valid():
                 return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -276,13 +409,14 @@ class LeaveApprovalView(APIView):
 
 
 # API View to manage courses
-class CourseManagementView(APIView):
+class CourseManagementView(GenericAPIView):
     permission_classes = (IsAuthenticated,)
+    serializer_class = CourseManagementSerializer
 
     def get(self, request, course_id):
         try:
             course = Course.objects.get(course_id=course_id)
-            serializer = CourseListSerializer(course)
+            serializer = self.get_serializer(course)
             return Response(serializer.data, status=status.HTTP_200_OK)
         except Course.DoesNotExist:
             return Response({'detail': '找不到課程'}, status=status.HTTP_404_NOT_FOUND)
@@ -290,31 +424,29 @@ class CourseManagementView(APIView):
     def post(self, request):
         if request.user.role != 'teacher':
             return Response({'detail': '只有老師可以創建課程'}, 
-                          status=status.HTTP_403_FORBIDDEN)
-        # print(request.data)
-        serializer = CourseManagementSerializer(data=request.data, 
-                                              context={'request': request})
+                            status=status.HTTP_403_FORBIDDEN)
+
+        serializer = self.get_serializer(data=request.data, context={'request': request})
         if not serializer.is_valid():
-            # print(serializer.errors)
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
         course = serializer.save(teacher_id=request.user)
         return Response({'detail': '課程創建成功', 'course_id': course.course_id}, 
-                       status=status.HTTP_201_CREATED)
+                        status=status.HTTP_201_CREATED)
 
     def put(self, request, course_id):
         try:
             course = Course.objects.get(course_id=course_id, teacher_id=request.user)
-            serializer = CourseManagementSerializer(course, data=request.data, 
-                                                  context={'request': request}, 
-                                                  partial=True)
+            serializer = self.get_serializer(course, data=request.data, 
+                                              context={'request': request}, 
+                                              partial=True)
             if serializer.is_valid():
                 serializer.save()
                 return Response({'detail': '課程更新成功'}, status=status.HTTP_200_OK)
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         except Course.DoesNotExist:
             return Response({'detail': '找不到課程或您沒有權限修改此課程'}, 
-                          status=status.HTTP_404_NOT_FOUND)
+                            status=status.HTTP_404_NOT_FOUND)
 
     def delete(self, request, course_id):
         try:
@@ -323,45 +455,60 @@ class CourseManagementView(APIView):
             return Response({'detail': '課程刪除成功'}, status=status.HTTP_200_OK)
         except Course.DoesNotExist:
             return Response({'detail': '找不到課程或您沒有權限刪除此課程'}, 
-                          status=status.HTTP_404_NOT_FOUND)
+                            status=status.HTTP_404_NOT_FOUND)
 
 
 # API to get class list
-class ClassListView(APIView):
+class ClassListView(GenericAPIView):
     permission_classes = (IsAuthenticated,)
+    serializer_class = ClassListSerializer
 
+    @extend_schema(
+        responses={200: ClassListSerializer(many=True)},
+        description="獲取所有班級列表",
+        summary="班級列表"
+    )
     def get(self, request):
         classes = Class.objects.all()
-        serializer = ClassListSerializer(classes, many=True)
+        serializer = self.get_serializer(classes, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
-class ClassStudentListView(APIView):
+class ClassStudentListView(GenericAPIView):
     # permission_classes = (IsAuthenticated,)
+    serializer_class = ClassStudentListSerializer
 
+    @extend_schema(
+        responses={
+            200: ClassStudentListSerializer(many=True),
+            404: {"type": "object", "properties": {"detail": {"type": "string"}}}
+        },
+        description="獲取指定班級的學生列表",
+        summary="班級學生列表"
+    )
     def get(self, request, class_id):
         try:
             class_obj = Class.objects.get(class_id=class_id)
             students = User.objects.filter(class_name=class_obj, role='student')
-            serializer = ClassStudentListSerializer(students, many=True)
+            serializer = self.get_serializer(students, many=True)
             return Response(serializer.data, status=status.HTTP_200_OK)
         except Class.DoesNotExist:
             return Response({'detail': '找不到班級'}, status=status.HTTP_404_NOT_FOUND)
 
 # 學生詳細資料視圖
-class StudentDetailView(APIView):
+class StudentDetailView(GenericAPIView):
     permission_classes = (IsAuthenticated,)
+    serializer_class = StudentDetailSerializer
 
     def get(self, request, student_id):
         try:
             student = User.objects.get(user_id=student_id, role='student')
-            serializer = StudentDetailSerializer(student)
-            # print(serializer.data)
+            serializer = self.get_serializer(student)
             return Response(serializer.data, status=status.HTTP_200_OK)
         except User.DoesNotExist:
             return Response({'detail': '找不到學生'}, status=status.HTTP_404_NOT_FOUND)
 
 # API to get list of days in a week
-class DaysOfWeekView(APIView):
+class DaysOfWeekView(GenericAPIView):
     permission_classes = (IsAuthenticated,)
 
     def get(self, request):
@@ -369,17 +516,48 @@ class DaysOfWeekView(APIView):
         return Response(days, status=status.HTTP_200_OK)
 
 # API to get semester list
-class SemesterListView(APIView):
+class SemesterListView(GenericAPIView):
     permission_classes = (IsAuthenticated,)
+    serializer_class = SemesterSerializer
 
     def get(self, request):
         semesters = Semester.objects.all()
-        serializer = SemesterSerializer(semesters, many=True)
+        serializer = self.get_serializer(semesters, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
-class CourseListView(APIView):
-    permission_classes = (IsAuthenticated,)
+class CourseListView(GenericAPIView):
+    serializer_class = CourseListSerializer
 
+    @extend_schema(
+        parameters=[
+            OpenApiParameter(
+                name='semester_id',
+                description='學期 ID',
+                required=False,
+                type=str
+            )
+        ],
+        responses={
+            200: {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "course_id": {"type": "string"},
+                        "course_name": {"type": "string"},
+                        "course_description": {"type": "string"},
+                        "teacher_name": {"type": "string"},
+                        "class": {"type": "string"},
+                        "semester": {"type": "string"},
+                        "day_of_week": {"type": "string"},
+                        "periods": {"type": "array", "items": {"type": "integer"}}
+                    }
+                }
+            }
+        },
+        description="獲取課程列表",
+        summary="課程列表查詢"
+    )
     def get(self, request):
         user = request.user
         semester_id = request.query_params.get('semester_id')  # 從查詢參數中獲取 semester_id
@@ -391,7 +569,6 @@ class CourseListView(APIView):
             courses = Course.objects.filter(class_id=user.class_name)
         else:
             courses = Course.objects.none()  # 管理員等其他角色預設不提供課程列表
-
 
         # 如果提供了 semester_id，進一步過濾課程
         if semester_id:
@@ -416,9 +593,33 @@ class CourseListView(APIView):
         ]
         return Response(data, status=status.HTTP_200_OK)
 
-class CourseGradeInputView(APIView):
-    permission_classes = (IsAuthenticated,)
-
+class CourseGradeInputView(GenericAPIView):
+    @extend_schema(
+        request={
+            "type": "object",
+            "properties": {
+                "grades": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "student_id": {"type": "string"},
+                            "middle_score": {"type": "number"},
+                            "final_score": {"type": "number"}
+                        }
+                    }
+                }
+            }
+        },
+        responses={
+            200: {"type": "object", "properties": {"detail": {"type": "string"}}},
+            400: {"type": "object", "properties": {"detail": {"type": "string"}}},
+            403: {"type": "object", "properties": {"detail": {"type": "string"}}},
+            404: {"type": "object", "properties": {"detail": {"type": "string"}}}
+        },
+        description="教師輸入學生成績",
+        summary="成績輸入"
+    )
     def put(self, request, course_id):
         user = request.user
         if user.role != 'teacher':
@@ -451,9 +652,17 @@ class CourseGradeInputView(APIView):
         return Response({'detail': 'Grades updated successfully.'}, status=status.HTTP_200_OK)
 
 
-class StudentGradeView(APIView):
+class StudentGradeView(GenericAPIView):
     permission_classes = (IsAuthenticated,)
 
+    @extend_schema(
+        responses={
+            200: StudentGradeSerializer(many=True),
+            403: {"type": "object", "properties": {"detail": {"type": "string"}}}
+        },
+        description="獲取學生成績資料",
+        summary="學生成績查詢"
+    )
     def get(self, request):
         user = request.user
         # if user.role != 'student':
@@ -474,7 +683,7 @@ class StudentGradeView(APIView):
         return Response(data, status=status.HTTP_200_OK)
 
 
-class ClassGradeRankView(APIView):
+class ClassGradeRankView(GenericAPIView):
     permission_classes = (IsAuthenticated,)
 
     def get(self, request, course_id):
@@ -503,9 +712,38 @@ class ClassGradeRankView(APIView):
 
         return Response(data, status=status.HTTP_200_OK)
 
-class ScheduleView(APIView):
+class ScheduleView(GenericAPIView):
     permission_classes = (IsAuthenticated,)
 
+    @extend_schema(
+        responses={
+            200: {
+                "type": "object",
+                "properties": {
+                    "schedule": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "course_id": {"type": "string"},
+                                "course_name": {"type": "string"},
+                                "course_description": {"type": "string"},
+                                "day_of_week": {"type": "string"},
+                                "periods": {
+                                    "type": "array",
+                                    "items": {"type": "integer"}
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            403: {"type": "object", "properties": {"detail": {"type": "string"}}},
+            404: {"type": "object", "properties": {"detail": {"type": "string"}}}
+        },
+        description="獲取課表資料（教師獲取授課課表，學生獲取班級課表）",
+        summary="課表查詢"
+    )
     def get(self, request, semester_id):
         user = request.user
         try:
@@ -534,9 +772,27 @@ class ScheduleView(APIView):
         return Response({'schedule': course_data}, status=status.HTTP_200_OK)
 
 
-class SemesterGradeView(APIView):
+class SemesterGradeView(GenericAPIView):
     permission_classes = (IsAuthenticated,)
 
+    @extend_schema(
+        responses={
+            200: {
+                "type": "object",
+                "properties": {
+                    "grades": {
+                        "type": "array",
+                        "items": StudentGradeSerializer
+                    },
+                    "overall_average": {"type": "number"}
+                }
+            },
+            403: {"type": "object", "properties": {"detail": {"type": "string"}}},
+            404: {"type": "object", "properties": {"detail": {"type": "string"}}}
+        },
+        description="獲取指定學期的成績資料",
+        summary="學期成績查詢"
+    )
     def get(self, request, semester_id):
         user = request.user
         if user.role != 'student':
@@ -573,7 +829,7 @@ class SemesterGradeView(APIView):
         return Response({'grades': data, 'overall_average': overall_average}, status=status.HTTP_200_OK)
 
 
-class AllSemesterGradeView(APIView):
+class AllSemesterGradeView(GenericAPIView):
     permission_classes = (IsAuthenticated,)
 
     def get(self, request):

@@ -12,10 +12,10 @@ from django.utils.crypto import get_random_string
 class UserManager(BaseUserManager):
     use_in_migrations = True
 
-    def create_user(self, user_id, name, birthday, password=None, **extra_fields):
+    def create_user(self, user_id, first_name,last_name, birthday, password=None, **extra_fields):
         if not user_id:
             raise ValueError('The User ID must be set')
-        user = self.model(user_id=user_id, name=name, birthday=birthday, **extra_fields)
+        user = self.model(user_id=user_id, first_name=first_name,last_name=last_name, birthday=birthday, **extra_fields)
         if not password:
             # 使用生日的月份和日期作為密碼的一部分
             month_day = birthday.strftime("%m%d")
@@ -26,7 +26,7 @@ class UserManager(BaseUserManager):
         user.save(using=self._db)
         return user
 
-    def create_superuser(self, user_id, name, birthday, password=None, **extra_fields):
+    def create_superuser(self, user_id, first_name,last_name, birthday, password=None, **extra_fields):
         extra_fields.setdefault('is_staff', True)
         extra_fields.setdefault('is_superuser', True)
 
@@ -35,7 +35,7 @@ class UserManager(BaseUserManager):
         if extra_fields.get('is_superuser') is not True:
             raise ValueError('Superuser must have is_superuser=True.')
 
-        return self.create_user(user_id, name, birthday, password, **extra_fields)
+        return self.create_user(user_id, first_name,last_name, birthday, password, **extra_fields)
 
 # 自定義 User 模型
 class User(AbstractUser):
@@ -61,7 +61,7 @@ class User(AbstractUser):
 
     def save(self, *args, **kwargs):
         self.name =f"{self.first_name}{self.last_name}"
-        if not self.pk or not self.password:  # 如果是新建用戶或未設置密碼
+        if not self.pk and not self.password:  # 如果是新建用戶或未設置密碼
             # 使用生日的月份和日期作為密碼的一部分
             month_day = self.birthday.strftime("%m%d")
             default_password = f"{month_day}Test!"  # 符合密碼規則的預設密碼

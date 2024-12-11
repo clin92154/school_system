@@ -23,7 +23,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = "django-insecure-iuwoax8#d4dzc0q8sw^vt9btp52=zsl5bv6)5ewd$+lzb!q0ot" 
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = False
+DEBUG = True
 
 ALLOWED_HOSTS = ['*']
 
@@ -100,6 +100,16 @@ DATABASES = {
     }
 }
 
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.postgresql',
+#         'NAME': 'yufeng_school_sys',  # 你的 PostgreSQL 資料庫名稱
+#         'USER': 'yufeng',      # 你的 PostgreSQL 使用者名稱
+#         'PASSWORD': "<eE@:<L)E'oL8T?C",  # 使用者密碼
+#         'HOST': '/cloudsql/orbital-voyage-444301-m7:asia-east1:yufeng-school-113',   # 伺服器位址，若伺服器在本機則使用 'localhost'
+#         'PORT': '5432',        # PostgreSQL 預設埠號
+#     }
+# }
 
 
 
@@ -129,6 +139,9 @@ REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication',
     ),
+        'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+
+
 }
 
 SIMPLE_JWT = {
