@@ -8,10 +8,15 @@ class Command(BaseCreateSuperuserCommand):
     def add_arguments(self, parser):
         super().add_arguments(parser)
         parser.add_argument('--user_id', required=True, help='Specifies the user ID for the superuser.')
+        parser.add_argument('--first_name', required=True, help='Specifies the first_name for the superuser.')
+        parser.add_argument('--last_name', required=True, help='Specifies the last_name for the superuser.')
         parser.add_argument('--password', required=True, help='Specifies the password for the superuser.')
 
     def handle(self, *args, **options):
         user_id = options.get('user_id')
+        # name = options.get('name')
+        first_name = options.get('first_name')
+        last_name = options.get('last_name')
         password = options.get('password')
 
         if User.objects.filter(user_id=user_id).exists():

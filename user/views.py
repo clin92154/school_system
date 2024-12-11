@@ -12,6 +12,140 @@ from django.utils.crypto import get_random_string
 from django.db.models import Q
 from .models import User, Course, Semester
 from .models import *
+from .serializers import *
+
+#登入登出模組
+# 登入 API
+class LoginView(APIView):
+    def post(self, request):
+        serializer = LoginSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            
+        user_id = serializer.validated_data['user_id']
+        password = serializer.validated_data['password']
+        
+        user = authenticate(request, user_id=user_id, password=password)
+        if user is not None:
+            refresh = RefreshToken.for_user(user)
+            return Response({
+                'refresh': str(refresh),
+                'access': str(refresh.access_token),
+                'role': user.role,
+                'name': user.name,
+                'user_id': user.user_id
+            }, status=status.HTTP_200_OK)
+        return Response({'detail': 'Invalid credentials'}, 
+                      status=status.HTTP_401_UNAUTHORIZED)
+
+
+# 登出 API
+# 自定義登出 API
+class LogoutView(APIView):
+    permission_classes = (IsAuthenticated,)
+
+    def post(self, request):
+        try:
+            refresh_token = request.data.get("refresh")
+            if not refresh_token:
+                return Response({"detail": "Refresh token is required"}, status=status.HTTP_400_BAD_REQUEST)
+                
+            token = RefreshToken(refresh_token)
+            token.blacklist()
+
+            return Response(status=status.HTTP_205_RESET_CONTENT)
+        except Exception as e:
+            return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        
+# 重設密碼 API
+class ResetPasswordView(APIView):
+    permission_classes = (IsAuthenticated,)
+
+    def post(self, request):
+        serializer = ResetPasswordSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        user = request.user
+        new_password = serializer.validated_data['new_password']
+
+        try:
+            # 驗證新密碼是否符合規則
+            validate_password(new_password, user)
+            
+            # 設置新密碼並儲存
+            user.set_password(new_password)
+            user.save()
+            
+            return Response({'detail': '密碼重設成功'}, status=status.HTTP_200_OK)
+            
+        except ValidationError as e:
+            return Response({'detail': e}, status=status.HTTP_400_BAD_REQUEST)
+
+# 監護人視圖
+class GuardianView(APIView):
+    permission_classes = (IsAuthenticated,)
+
+    def get(self, request):
+        try:
+            guardian = Guardian.objects.get(student=request.user)
+            serializer = GuardianSerializer(guardian)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        except Guardian.DoesNotExist as err:
+            return Response({'detail': '找不到監護人資料'}, status=status.HTTP_404_NOT_FOUND)
+
+    def post(self, request):
+        # 檢查是否已存在監護人資料
+        try:
+            guardian = Guardian.objects.get(student=request.user)
+            # 如果存在則更新
+            serializer = GuardianSerializer(guardian, data=request.data, partial=True)
+            if serializer.is_valid():
+                serializer.save()
+                return Response({'detail': '監護人資料更新成功'}, status=status.HTTP_200_OK)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        except Guardian.DoesNotExist:
+            # 如果不存在則創建
+            serializer = GuardianSerializer(data=request.data)
+            if not serializer.is_valid():
+                return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            
+            guardian = serializer.save(student=request.user)
+            return Response({'detail': '監護人資料創建成功','guardian_id':guardian.guardian_id}, status=status.HTTP_201_CREATED)
+
+# 用戶檔案視圖
+class UserProfileView(APIView):
+    permission_classes = (IsAuthenticated,)
+
+    def get(self, request):
+        serializer = UserProfileSerializer(request.user)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    def put(self, request):
+        serializer = UserProfileSerializer(request.user, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response({'detail': '個人資料更新成功'}, status=status.HTTP_200_OK)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+# 取得用戶名稱和 user_id API
+class UserInfoView(APIView):
+    permission_classes = (IsAuthenticated,)
+
+    def get(self, request):
+        user = request.user
+        data = {
+            'user_id': user.user_id,
+            'name': user.name,
+            'role':user.role
+        }
+        return Response(data, status=status.HTTP_200_OK)
+
+
+
+
+
+
 
 
 # API View for Categories
@@ -34,480 +168,162 @@ class CategoryListView(APIView):
         return Response({'data':data},status=status.HTTP_200_OK)
 
 
-# 登入 API
-class LoginView(APIView):
-    def post(self, request):
-        user_id = request.data.get('user_id')
-        password = request.data.get('password')
-        print(user_id,password)
-
-        # 驗證用戶
-        user = authenticate(request, user_id=user_id, password=password)
-        if user is not None:
-            # 生成 JWT Token
-            refresh = RefreshToken.for_user(user)
-            role = user.role
-
-            print({
-                'refresh': str(refresh),
-                'access': str(refresh.access_token),
-                'role': role,
-                'name': user.name,
-                'user_id': user.user_id
-            })
-            return Response({
-                'refresh': str(refresh),
-                'access': str(refresh.access_token),
-                'role': role,
-                'name': user.name,
-                'user_id': user.user_id
-            }, status=status.HTTP_200_OK)
-        else:
-            return Response({'detail': 'Invalid credentials'}, status=status.HTTP_401_UNAUTHORIZED)
-
-# 登出 API
-# 自定義登出 API
-class LogoutView(APIView):
-    permission_classes = (IsAuthenticated,)
-
-    def post(self, request):
-        try:
-            refresh_token = request.data.get("refresh")
-            if not refresh_token:
-                return Response({"detail": "Refresh token is required"}, status=status.HTTP_400_BAD_REQUEST)
-                
-            token = RefreshToken(refresh_token)
-            token.blacklist()
-
-            return Response(status=status.HTTP_205_RESET_CONTENT)
-        except Exception as e:
-            return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-        
-
-# 重設密碼 API
-class ResetPasswordView(APIView):
-    permission_classes = (IsAuthenticated,)
-
-    def post(self, request):
-        user = request.user
-        new_password = request.data.get('new_password')
-
-        if not new_password:
-            return Response({'detail': 'New password is required'}, status=status.HTTP_400_BAD_REQUEST)
-
-        # 設置新密碼
-        user.password = make_password(new_password)
-        user.save()
-
-        return Response({'detail': 'Password has been reset successfully'}, status=status.HTTP_200_OK)
 
 
-class GuardianView(APIView):
-    permission_classes = (IsAuthenticated,)
 
-    def post(self, request):
-        user = request.user
-        name = request.data.get('name')
-        phone_num = request.data.get('phone_num')
-        relationship = request.data.get('relationship')
-        address = request.data.get('address')
-        guardian = Guardian.objects.update_or_create(
-            student=user,
-            name=name,
-            phone_number=phone_num,
-            relationship=relationship,
-            address=address,
-        )
-        print(guardian)
-        return Response({'detail': 'guardian created successfully.'}, status=status.HTTP_201_CREATED)
-
-
-    def get(self, request):
-        user = request.user
-        guardian = Guardian.objects.get(student=user)
-        data = {
-            'name': guardian.name,
-            'guardian_id': guardian.guardian_id,
-            'phone_number': guardian.phone_number,
-            'relationship': guardian.relationship,
-            'address': guardian.address
-        }
-        return Response(data, status=status.HTTP_200_OK)
-
-    # def put(self, request):
-    #     user = request.user
-    #     name = request.data.get('name')
-    #     gender = request.data.get('gender')
-    #     birthday = request.data.get('birthday')
-
-    #     if name:
-    #         user.name = name
-    #     if gender:
-    #         user.gender = gender
-    #     if birthday:
-    #         user.birthday = birthday
-
-    #     user.save()
-    #     return Response({'detail': 'Profile updated successfully'}, status=status.HTTP_200_OK)
-
-# 個人檔案設定 API
-class UserProfileView(APIView):
-    permission_classes = (IsAuthenticated,)
-
-    def get(self, request):
-        user = request.user
-        data = {
-            'user_id': user.user_id,
-            'name': user.name,
-            'first_name': user.first_name,
-            'last_name': user.last_name,
-            'eng_name':user.eng_name,
-            'role': user.role,
-            'semester': user.semester.semester_id if user.semester else None,
-            'gender': user.gender,
-            'birthday': user.birthday,
-            'class_name': f"{user.class_name.grade} 年 {user.class_name.class_name} 班" if user.class_name else None
-        }
-        return Response(data, status=status.HTTP_200_OK)
-
-    def put(self, request):
-        user = request.user
-        first_name = request.data.get('first_name')
-        eng_name = request.data.get('eng_name')
-        last_name = request.data.get('last_name')
-        gender = request.data.get('gender')
-        birthday = request.data.get('birthday')
-        if eng_name:
-            user.eng_name = eng_name
-        if first_name:
-            user.first_name = first_name
-        if last_name:
-            user.last_name = last_name
-        if gender:
-            user.gender = gender
-        if birthday:
-            user.birthday = birthday
-        print(user.eng_name)
-        user.save()
-        return Response({'detail': 'Profile updated successfully'}, status=status.HTTP_200_OK)
-
-# 取得用戶名稱和 user_id API
-class UserInfoView(APIView):
-    permission_classes = (IsAuthenticated,)
-
-    def get(self, request):
-        user = request.user
-        data = {
-            'user_id': user.user_id,
-            'name': user.name,
-            'role':user.role
-        }
-        return Response(data, status=status.HTTP_200_OK)
-    
 
 # 學生請假申請 API
 class LeaveApplicationView(APIView):
-    permission_classes = (IsAuthenticated,)#紀錄tokem有沒有白名單內，如果有的話取得User資料
+    permission_classes = (IsAuthenticated,)
 
     def post(self, request):
-        user = request.user
-        if user.role != 'student':
-            return Response({'detail': 'Only students can apply for leave.'}, status=status.HTTP_403_FORBIDDEN)
+        if request.user.role != 'student':
+            return Response({'detail': 'Only students can apply for leave.'},
+                          status=status.HTTP_403_FORBIDDEN)
 
-        leave_type_id = request.data.get('leave_type_id')
-        reason = request.data.get('reason')
-        start_datetime = request.data.get('start_datetime')
-        end_datetime = request.data.get('end_datetime')
-        periods= request.data.get('periods') 
-        print(periods)
-        if not leave_type_id or not reason or not start_datetime or not end_datetime:
-            return Response({'detail': 'All fields are required: leave_type_id, reason, start_datetime, end_datetime.'}, status=status.HTTP_400_BAD_REQUEST)
+        serializer = LeaveApplicationSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-        try:
-            start_datetime = datetime.strptime(start_datetime, '%Y-%m-%d')
-            end_datetime = datetime.strptime(end_datetime, '%Y-%m-%d')
-        except ValueError:
-            return Response({'detail': 'Invalid datetime format. Use YYYY-MM-DD'}, status=status.HTTP_400_BAD_REQUEST)
-
-        if end_datetime < start_datetime:
-            return Response({'detail': 'End datetime cannot be earlier than start datetime.'}, status=status.HTTP_400_BAD_REQUEST)
-
-        leave_type = LeaveType.objects.filter(id=leave_type_id).first()
-        if not leave_type:
-            return Response({'detail': 'Invalid leave type.'}, status=status.HTTP_400_BAD_REQUEST)
-
-        leave_application = LeaveApplication.objects.create(
-            student=user,
-            leave_type=leave_type,
-            reason=reason,
-            start_datetime=start_datetime,
-            end_datetime=end_datetime
-        )
-        leave_application.period.set([Period.objects.get(period_number=period) for period in periods])
-        return Response({'detail': 'Leave application submitted successfully.', 'leave_id': leave_application.leave_id}, status=status.HTTP_201_CREATED)
+        leave_application = serializer.save(student=request.user)
+        return Response({
+            'detail': 'Leave application submitted successfully.',
+            'leave_id': leave_application.leave_id
+        }, status=status.HTTP_201_CREATED)
 
 # 請假類型列表 API
 class LeaveTypeListView(APIView):
-    # permission_classes = (IsAuthenticated,)
-
     def get(self, request):
         leave_types = LeaveType.objects.all()
-        data = [{'type_id': leave_type.id, 'type_name': leave_type.type_name} for leave_type in leave_types]
-        return Response(data, status=status.HTTP_200_OK)
+        serializer = LeaveTypeSerializer(leave_types, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
-# 請假類型列表 API
+# 節次列表視圖
 class PeriodListView(APIView):
-    # permission_classes = (IsAuthenticated,)
-
     def get(self, request):
         periods = Period.objects.all()
-        data = [{'period': str(period),'period_id': period.id, 'period_num': period.period_number} for period in periods]
-        return Response(data, status=status.HTTP_200_OK)
+        serializer = PeriodSerializer(periods, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
-
+# 請假列表視圖
 class LeaveListView(APIView):
     permission_classes = (IsAuthenticated,)
 
     def get(self, request):
         user = request.user
-        try:
+        if user.role == 'teacher':
+            students = User.objects.filter(class_name=user.class_name, role='student')
+            leave_applications = LeaveApplication.objects.filter(student__in=students).order_by('status','apply_date',)
+        elif user.role == 'student':
+            leave_applications = LeaveApplication.objects.filter(student=user).order_by('status','apply_date',)
+        else:
+            return Response({'detail': '您沒有權限查看請假申請'}, 
+                          status=status.HTTP_403_FORBIDDEN)
 
-            if user.role == 'teacher':
-                # 老師查詢所屬班級所有學生的請假申請
-                if user.class_name:
-                    students = User.objects.filter(class_name=user.class_name, role='student')
-                    leave_applications = LeaveApplication.objects.filter(student__in=students).order_by("-apply_date","status")
-                    data = [
-                        {
-                            'leave_id': leave.leave_id,
-                            'student': leave.student.user_id,
-                            'leave_type': leave.leave_type.type_name,
-                            'apply_date': leave.apply_date,
-                            'start_datetime': leave.start_datetime,
-                            'end_datetime': leave.end_datetime,
-                            'status':leave.status
-                        } for leave in leave_applications
-                    ]
-                    return Response({'leave_list': data}, status=status.HTTP_200_OK)
-                else:
-                    return Response({'detail': 'You are not assigned to a class.'}, status=status.HTTP_400_BAD_REQUEST)
+        serializer = LeaveListSerializer(leave_applications, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
-            elif user.role == 'student':
-                # 學生查詢自己的請假申請
-                leave_applications = LeaveApplication.objects.filter(student=user).order_by("-apply_date","status")
-                data = [
-                    {
-                        'leave_id': leave.leave_id,
-                        'student': leave.student.user_id,
-                        'leave_type': leave.leave_type.type_name,
-                        'apply_date': leave.apply_date,
-                        'start_datetime': leave.start_datetime,
-                        'end_datetime': leave.end_datetime,
-                        'status':leave.status
-                    } for leave in leave_applications
-                ]
-                return Response({'leave_list': data}, status=status.HTTP_200_OK)
-
-            else:
-                return Response({'detail': 'You do not have permission to view leave applications.'}, status=status.HTTP_403_FORBIDDEN)
-        except Exception as err:
-                print(err)
-                return Response({'detail': err})
-
-
-# 查詢請假詳細狀態 API
+# 請假詳情視圖
 class LeaveDetailView(APIView):
     permission_classes = (IsAuthenticated,)
 
     def get(self, request, leave_id):
-        user = request.user
         try:
             leave_application = LeaveApplication.objects.get(leave_id=leave_id)
+            
+            # 權限檢查
+            if request.user.role == 'student' and leave_application.student != request.user:
+                return Response({'detail': '您沒有權限查看此請假申請'}, 
+                              status=status.HTTP_403_FORBIDDEN)
+            elif request.user.role == 'teacher' and leave_application.student.class_name != request.user.class_name:
+                return Response({'detail': '您沒有權限查看此請假申請'}, 
+                              status=status.HTTP_403_FORBIDDEN)
 
-            # 學生只能查看自己的請假申請，老師可以查看其指導班級學生的請假申請
-            if user.role == 'student' and leave_application.student != user:
-                return Response({'detail': 'You do not have permission to view this leave application.'}, status=status.HTTP_403_FORBIDDEN)
-            elif user.role == 'teacher' and leave_application.student.class_name != user.class_name:
-                return Response({'detail': 'You do not have permission to view this leave application.'}, status=status.HTTP_403_FORBIDDEN)
-            periods = leave_application.period.all()  # 假設 leave_application 和 period 是多對多關係
-            data = {
-                'leave_id': leave_application.leave_id,
-                'student': leave_application.student.user_id,
-                'leave_type': leave_application.leave_type.type_name,
-                'reason': leave_application.reason,
-                'apply_date': leave_application.apply_date,
-                'start_datetime': leave_application.start_datetime,
-                'end_datetime': leave_application.end_datetime,
-                'status': leave_application.status,
-                'approved_by': leave_application.approved_by.user_id if leave_application.approved_by else None,
-                'approved_date': leave_application.approved_date,
-                'remark': leave_application.remark,
-                'periods': [period.period_number for period in periods] # 假設您希望返回節次的 ID 列表
-            }           
-
-            return Response(data, status=status.HTTP_200_OK)
+            serializer = LeaveDetailSerializer(leave_application)
+            
+            return Response(serializer.data, status=status.HTTP_200_OK)
         except LeaveApplication.DoesNotExist:
-            return Response({'detail': 'Leave application not found.'}, status=status.HTTP_404_NOT_FOUND)
+            return Response({'detail': '找不到請假申請'}, status=status.HTTP_404_NOT_FOUND)
 
-# 老師審核請假申請 API
+# 請假審核視圖
 class LeaveApprovalView(APIView):
     permission_classes = (IsAuthenticated,)
+
     def post(self, request, leave_id):
-        user = request.user
-        if user.role != 'teacher':
-            return Response({'detail': 'Only teachers can approve leave applications.'}, status=status.HTTP_403_FORBIDDEN)
+        if request.user.role != 'teacher':
+            return Response({'detail': '只有老師可以審核請假申請'}, 
+                          status=status.HTTP_403_FORBIDDEN)
 
         try:
             leave_application = LeaveApplication.objects.get(leave_id=leave_id)
-            if leave_application.student.class_name != user.class_name:
-                return Response({'detail': 'You do not have permission to approve this leave application.'}, status=status.HTTP_403_FORBIDDEN)
+            if leave_application.student.class_name != request.user.class_name:
+                return Response({'detail': '您沒有權限審核此請假申請'}, 
+                              status=status.HTTP_403_FORBIDDEN)
 
-            leave_status = request.data.get('status')
-            remark = request.data.get('remark', '')
+            serializer = LeaveApprovalSerializer(data=request.data)
+            if not serializer.is_valid():
+                return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-            if leave_status not in ['approved', 'rejected']:
-                return Response({'detail': 'Invalid status. Must be either "approved" or "rejected".'}, status=status.HTTP_400_BAD_REQUEST)
-
-            leave_application.status = leave_status
-            leave_application.approved_by = user
+            leave_application.status = serializer.validated_data['status']
+            leave_application.approved_by = request.user
             leave_application.approved_date = datetime.now().date()
-            leave_application.remark = remark
+            leave_application.remark = serializer.validated_data.get('remark', '')
             leave_application.save()
 
-            return Response({'detail': 'Leave application updated successfully.'}, status=status.HTTP_200_OK)
+            return Response({'detail': '請假申請審核完成'}, status=status.HTTP_200_OK)
         except LeaveApplication.DoesNotExist:
-            return Response({'detail': 'Leave application not found.'}, status=status.HTTP_404_NOT_FOUND)
+            return Response({'detail': '找不到請假申請'}, status=status.HTTP_404_NOT_FOUND)
 
 
 # API View to manage courses
 class CourseManagementView(APIView):
     permission_classes = (IsAuthenticated,)
 
-    def get(self, request,course_id):
-        user = request.user
-        print(course_id)
-        # 根據用戶的角色過濾課程
-        if user.role == 'teacher' or user.role == 'student':
-            courses = Course.objects.get(course_id=course_id)
-        else:
-            courses = Course.objects.none()  # 管理員等其他角色預設不提供課程列表
+    def get(self, request, course_id):
+        try:
+            course = Course.objects.get(course_id=course_id)
+            serializer = CourseListSerializer(course)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        except Course.DoesNotExist:
+            return Response({'detail': '找不到課程'}, status=status.HTTP_404_NOT_FOUND)
 
-        data = {
-                'course_id': courses.course_id,
-                'course_name': courses.course_name,
-                'course_description': courses.course_description,
-                'teacher_name': courses.teacher_id.name,
-                'class': {'id':courses.class_id.class_id,'name':f"{courses.class_id.grade} 年 {courses.class_id.class_name} 班",},
-                'semester': courses.semester.semester_id,
-                'day_of_week': courses.day_of_week,
-                'periods': [p.period_number for p in courses.period.all()]
-                }
-            
-        return Response(data, status=status.HTTP_200_OK)
-    # 新增課程
     def post(self, request):
-        user = request.user
-        # 確保只有老師能建立課程
-        if user.role != 'teacher':
-            return Response({'detail': 'Only teachers can create courses.'}, status=status.HTTP_403_FORBIDDEN)
+        if request.user.role != 'teacher':
+            return Response({'detail': '只有老師可以創建課程'}, 
+                          status=status.HTTP_403_FORBIDDEN)
+        # print(request.data)
+        serializer = CourseManagementSerializer(data=request.data, 
+                                              context={'request': request})
+        if not serializer.is_valid():
+            # print(serializer.errors)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-        # 取得請求資料
-        course_name = request.data.get('course_name')
-        course_description = request.data.get('course_description')
-        semester_id = request.data.get('semester_id')
-        class_id = request.data.get('class_id')
-        periods = request.data.get('periods')  # 節次
-        day_of_week = request.data.get('day_of_week')  # 星期幾（選擇：Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday）（選擇：Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday）  # 星期幾
-        print(request.data)
+        course = serializer.save(teacher_id=request.user)
+        return Response({'detail': '課程創建成功', 'course_id': course.course_id}, 
+                       status=status.HTTP_201_CREATED)
 
-        # 驗證必填字段
-        if not (course_name and semester_id and class_id and periods and day_of_week):
-            return Response({'detail': 'All fields are required.'}, status=status.HTTP_400_BAD_REQUEST)
-
-        # 驗證學期、班級是否存在
-        try:
-            semester = Semester.objects.get(semester_id=semester_id)
-            class_obj = Class.objects.get(class_id=class_id)
-        except (Semester.DoesNotExist, Class.DoesNotExist):
-            return Response({'detail': 'Invalid semester or class.'}, status=status.HTTP_400_BAD_REQUEST)
-
-        # 驗證節數是否存在
-        period_objs = Period.objects.filter(id__in=periods)
-        if period_objs.count() != len(periods):
-            return Response({'detail': 'One or more periods are invalid.'}, status=status.HTTP_400_BAD_REQUEST)
-        # 驗證是否衝堂
-        conflicting_courses = Course.objects.filter(
-            Q(teacher_id=user) & Q(semester=semester) & Q(period__in=period_objs) & Q(day_of_week=day_of_week)
-        )
-        if conflicting_courses.exists():
-            return Response({'detail': 'Course schedule conflicts with another course.'}, status=status.HTTP_400_BAD_REQUEST)
-    
-        # # 創建課程
-        course = Course.objects.create(
-            course_name=course_name,
-            course_description=course_description,
-            teacher_id=user,
-            class_id=class_obj,
-            semester=semester,
-            day_of_week=day_of_week
-        )
-        course.period.set(period_objs)
-
-        # return Response({'detail': 'Course created successfully.', 'course_id': course.course_id}, status=status.HTTP_201_CREATED)
-        return Response({'detail': 'Course created successfully.'}, status=status.HTTP_201_CREATED)
-
-    # 修改課程
     def put(self, request, course_id):
-        user = request.user
-        # 確保只有課程的建立者可以修改
         try:
-            course = Course.objects.get(course_id=course_id, teacher_id=user)
+            course = Course.objects.get(course_id=course_id, teacher_id=request.user)
+            serializer = CourseManagementSerializer(course, data=request.data, 
+                                                  context={'request': request}, 
+                                                  partial=True)
+            if serializer.is_valid():
+                serializer.save()
+                return Response({'detail': '課程更新成功'}, status=status.HTTP_200_OK)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         except Course.DoesNotExist:
-            return Response({'detail': 'Course not found or you do not have permission to edit this course.'}, status=status.HTTP_404_NOT_FOUND)
+            return Response({'detail': '找不到課程或您沒有權限修改此課程'}, 
+                          status=status.HTTP_404_NOT_FOUND)
 
-        # 取得請求資料
-        course_name = request.data.get('course_name')
-        course_description = request.data.get('course_description')
-        semester_id = request.data.get('semester_id')
-        class_id = request.data.get('class_id')
-        periods = request.data.get('periods')  # 節次
-        day_of_week = request.data.get('day_of_week')  # 星期幾
-
-        # 驗證學期、班級是否存在
-        try:
-            print(semester_id,class_id)
-            semester = Semester.objects.get(semester_id=semester_id)
-            class_obj = Class.objects.get(class_id=class_id)
-        except (Semester.DoesNotExist, Class.DoesNotExist):
-            return Response({'detail': 'Invalid semester or class.'}, status=status.HTTP_400_BAD_REQUEST)
-
-        # 驗證節數是否存在
-        period_objs = Period.objects.filter(id__in=periods)
-        if period_objs.count() != len(periods):
-            return Response({'detail': 'One or more periods are invalid.'}, status=status.HTTP_400_BAD_REQUEST)
-
-        # 更新課程信息
-        course.course_name = course_name
-        course.course_description = course_description
-        course.semester = semester
-        course.class_id = class_obj
-        course.day_of_week = day_of_week
-        course.period.set(period_objs)
-        course.save()
-
-        return Response({'detail': 'Course updated successfully.'}, status=status.HTTP_200_OK)
-
-    # 刪除課程
     def delete(self, request, course_id):
-        user = request.user
-        # 確保只有課程的建立者可以刪除
         try:
-            course = Course.objects.get(course_id=course_id, teacher_id=user)
+            course = Course.objects.get(course_id=course_id, teacher_id=request.user)
+            course.delete()
+            return Response({'detail': '課程刪除成功'}, status=status.HTTP_200_OK)
         except Course.DoesNotExist:
-            return Response({'detail': 'Course not found or you do not have permission to delete this course.'}, status=status.HTTP_404_NOT_FOUND)
-
-        course.delete()
-        return Response({'detail': 'Course deleted successfully.'}, status=status.HTTP_200_OK)
+            return Response({'detail': '找不到課程或您沒有權限刪除此課程'}, 
+                          status=status.HTTP_404_NOT_FOUND)
 
 
 # API to get class list
@@ -516,49 +332,33 @@ class ClassListView(APIView):
 
     def get(self, request):
         classes = Class.objects.all()
-        data = [{'class_id': c.class_id, 'class_name': c.class_name, 'grade': c.grade, 'year': c.year} for c in classes]
-        return Response(data, status=status.HTTP_200_OK)
+        serializer = ClassListSerializer(classes, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
 class ClassStudentListView(APIView):
-    permission_classes = (IsAuthenticated,)
+    # permission_classes = (IsAuthenticated,)
 
     def get(self, request, class_id):
         try:
             class_obj = Class.objects.get(class_id=class_id)
+            students = User.objects.filter(class_name=class_obj, role='student')
+            serializer = ClassStudentListSerializer(students, many=True)
+            return Response(serializer.data, status=status.HTTP_200_OK)
         except Class.DoesNotExist:
-            return Response({'detail': 'Class not found.'}, status=status.HTTP_404_NOT_FOUND)
+            return Response({'detail': '找不到班級'}, status=status.HTTP_404_NOT_FOUND)
 
-        students = User.objects.filter(class_name=class_obj, role='student')
-        student_data = [
-            {
-                'student_id': student.user_id,
-                'name': student.name,
-                'gender': student.gender,
-                'birthday': student.birthday,
-            } for student in students
-        ]
-        return Response({'students': student_data}, status=status.HTTP_200_OK)
-
-
+# 學生詳細資料視圖
 class StudentDetailView(APIView):
     permission_classes = (IsAuthenticated,)
 
     def get(self, request, student_id):
         try:
             student = User.objects.get(user_id=student_id, role='student')
+            serializer = StudentDetailSerializer(student)
+            # print(serializer.data)
+            return Response(serializer.data, status=status.HTTP_200_OK)
         except User.DoesNotExist:
-            return Response({'detail': 'Student not found.'}, status=status.HTTP_404_NOT_FOUND)
-
-        student_data = {
-            'student_id': student.user_id,
-            'name': student.name,
-            'gender': student.gender,
-            'birthday': student.birthday,
-            'class_name': student.class_name.class_name if student.class_name else None,
-            'grade': student.class_name.grade if student.class_name else None,
-        }
-        return Response(student_data, status=status.HTTP_200_OK)
-
+            return Response({'detail': '找不到學生'}, status=status.HTTP_404_NOT_FOUND)
 
 # API to get list of days in a week
 class DaysOfWeekView(APIView):
@@ -574,8 +374,8 @@ class SemesterListView(APIView):
 
     def get(self, request):
         semesters = Semester.objects.all()
-        data = [{'semester_id': s.semester_id, 'year': s.year, 'term': s.term} for s in semesters]
-        return Response(data, status=status.HTTP_200_OK)
+        serializer = SemesterSerializer(semesters, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
 class CourseListView(APIView):
     permission_classes = (IsAuthenticated,)
@@ -749,6 +549,7 @@ class SemesterGradeView(APIView):
 
         course_students = CourseStudent.objects.filter(student_id=user, semester=semester)
         if not course_students:
+            # print( Response({'detail': 'No grades found for the selected semester.'}, status=status.HTTP_404_NOT_FOUND))
             return Response({'detail': 'No grades found for the selected semester.'}, status=status.HTTP_404_NOT_FOUND)
 
         total_score = 0
@@ -767,7 +568,7 @@ class SemesterGradeView(APIView):
 
         overall_average = total_score / total_courses if total_courses > 0 else None
 
-        print({'grades': data, 'overall_average': overall_average})
+        # print({'grades': data, 'overall_average': overall_average})
 
         return Response({'grades': data, 'overall_average': overall_average}, status=status.HTTP_200_OK)
 

@@ -1,18 +1,26 @@
-from rest_framework.test import APITestCase
-from rest_framework import status
-from django.urls import reverse
-from .models import User
 from datetime import date
 from rest_framework.test import APITestCase, APIClient
-from rest_framework import status
 from django.urls import reverse 
 from .models import *
 from rest_framework_simplejwt.tokens import RefreshToken
 from datetime import date
-import json
-import inspect
+from django.test import TestCase
 
+class UserModelTests(TestCase):
+    def test_password_validation(self):
+        user = User(user_id='S123', birthday='2000-01-01', role='student', name='Test User')
+        short_password = '123'
+        valid_password = 'Valid123!'
 
+        # 測試短密碼
+        with self.assertRaises(ValidationError):
+            validate_password(short_password, user)
+
+        # 測試有效密碼
+        try:
+            validate_password(valid_password, user)
+        except ValidationError:
+            self.fail("Valid password failed validation")
 
 
 class UserProfileTests(APITestCase):

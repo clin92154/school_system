@@ -39,10 +39,10 @@ class UserManager(BaseUserManager):
 
 # 自定義 User 模型
 class User(AbstractUser):
-    user_id = models.CharField(max_length=50, unique=True)  # 學號或員工編號
-    name = models.CharField(max_length=100)  # 用戶
+    user_id = models.CharField(max_length=20, unique=True)  # 學號或員工編號
+    name = models.CharField(max_length=20)  # 用戶
     birthday = models.DateField()  # 生日
-    eng_name = models.CharField(max_length=100, null=True, blank=True)  # 英文
+    eng_name = models.CharField(max_length=20, null=True, blank=True)  # 英文
     semester = models.ForeignKey('Semester', on_delete=models.CASCADE, null=True, blank=True)  # 入職、入學學期
     role = models.CharField(max_length=10, choices=[('admin', 'Admin'), ('student', 'Student'), ('teacher', 'Teacher')])
     gender = models.CharField(max_length=10, choices=[('male', '男生'), ('female', '女生')])  # 性別
@@ -53,6 +53,11 @@ class User(AbstractUser):
     REQUIRED_FIELDS = ['birthday']
 
     objects = UserManager()
+    def set_password(self, raw_password):
+        """覆蓋 set_password 方法，確保密碼驗證"""
+        if raw_password:
+            validate_password(raw_password, self)  # 驗證密碼是否符合規範
+        super().set_password(raw_password)
 
     def save(self, *args, **kwargs):
         self.name =f"{self.first_name}{self.last_name}"
@@ -79,7 +84,7 @@ class Class(models.Model):
         max_length=1,
         validators=[RegexValidator(regex='^[A-Z]$', message='Class name must be a single uppercase letter from A to Z.')]
     )
-    class_id = models.CharField(max_length=20, primary_key=True)  # 班級 ID
+    class_id = models.CharField(max_length=10, primary_key=True)  # 班級 ID
     grade = models.PositiveIntegerField(choices=[(i, f"{i} 年級") for i in range(1, 7)])  # 年級，從 1 到 6
     teacher_id = models.OneToOneField(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='teacher_class')  # 班導師
     year = models.PositiveIntegerField(
@@ -101,7 +106,7 @@ class Class(models.Model):
 
 # 學期模型
 class Semester(models.Model):
-    semester_id = models.CharField(max_length=20, primary_key=True)  # 學期 ID，如 2023-1 表示 2023 年第一學期
+    semester_id = models.CharField(max_length=10, primary_key=True)  # 學期 ID，如 2023-1 表示 2023 年第一學期
     year = models.PositiveIntegerField(
         validators=[
             MinValueValidator(1900),  # 最小年份限制（可依需求修改）
@@ -114,11 +119,13 @@ class Semester(models.Model):
     final_time = models.DateField(null=True, blank=True)  # 結束時間
     
     def save(self, *args, **kwargs):
-        # 自動生成 semester_id，結合 year 和 term
-        if self.final_time> self.begin_time:
-            self.semester_id = f"{self.year}-{self.term}"
-            super().save(*args, **kwargs)
-            
+        if self.final_time is not None and self.begin_time is not None:
+
+            # 自動生成 semester_id，結合 year 和 term
+            if self.final_time> self.begin_time:
+                self.semester_id = f"{self.year}-{self.term}"
+                super().save(*args, **kwargs)
+                
 
     def __str__(self):
         return f"{self.year} - {self.get_term_display()}"
@@ -127,7 +134,7 @@ class Semester(models.Model):
 class Course(models.Model):
     """course_id,course_name,course_description,class_id,period,semester"""
     course_id = models.CharField(max_length=20, primary_key=True)  # 課程 ID
-    course_name = models.CharField(max_length=100)  # 課程名稱
+    course_name = models.CharField(max_length=50)  # 課程名稱
     course_description = models.TextField(blank=True, null=True)  # 課程描述
     teacher_id = models.ForeignKey(User, on_delete=models.CASCADE, limit_choices_to={'role': 'teacher'})  # 授課老師
     class_id = models.ForeignKey(Class, on_delete=models.CASCADE)  # 所屬班級
@@ -166,11 +173,12 @@ class CourseStudent(models.Model):
         # 自動生成 course_id
         if self.middle_score and self.final_score:
             self.average = (self.middle_score+self.final_score)/2
-
+        else:
+            self.average = None
         super().save(*args, **kwargs)
 
 class LeaveType(models.Model):
-    type_name = models.CharField(max_length=50)  # 請假類型名稱
+    type_name = models.CharField(max_length=10)  # 請假類型名稱
 
     def __str__(self):
         return self.type_name
@@ -189,13 +197,13 @@ class LeaveApplication(models.Model):
     guardian = models.OneToOneField('Guardian', on_delete=models.CASCADE, null=True, blank=True)  # 監護人
     leave_type = models.ForeignKey(LeaveType, on_delete=models.CASCADE)  # 請假類型
     period = models.ManyToManyField(Period)  # 請假節次
-    reason = models.TextField()  # 請假原因
+    reason = models.TextField(max_length=255)  # 請假原因
     apply_date = models.DateField(default=timezone.now)  # 申請日期
     start_datetime = models.DateField(null=True, blank=True)  # 請假開始日期和時間
     end_datetime = models.DateField(null=True, blank=True)  # 請假結束日期和時間
     approved_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='approved_leaves', limit_choices_to={'role': 'teacher'})  # 審批人
     approved_date = models.DateField(blank=True, null=True)  # 審批日期
-    status = models.CharField(max_length=210, choices=[('pending', 'Pending'), ('approved', 'Approved'), ('rejected', 'Rejected')],default='pending')  # 審批狀態
+    status = models.CharField(max_length=10, choices=[('pending', 'Pending'), ('approved', 'Approved'), ('rejected', 'Rejected')],default='pending')  # 審批狀態
     remark = models.TextField(blank=True, null=True)  # 備註
 
     def __str__(self):
@@ -211,17 +219,14 @@ class LeaveApplication(models.Model):
 class Guardian(models.Model):
     guardian_id = models.CharField(max_length=50, unique=True, editable=False, primary_key=True)  # 監護人 ID
     student = models.ForeignKey(User, on_delete=models.CASCADE, limit_choices_to={'role': 'student'}, null=True, blank=True)  # 所屬學生
-    name = models.CharField(max_length=100)  # 監護人姓名
+    name = models.CharField(max_length=20)  # 監護人姓名
     phone_number = models.CharField(max_length=20)  # 電話號碼
-    relationship = models.CharField(max_length=50)  # 與學生的關係
+    relationship = models.CharField(max_length=10)  # 與學生的關係
     address = models.TextField()  # 地址
     
     def save(self, *args, **kwargs):
-        # 確保在新建的情況下自動生成 guardian_id
         if not self.pk:
-            # 計算該學生已有的監護人數量
-            count = Guardian.objects.filter(student=self.student).count() + 1
-            self.guardian_id = f"{self.student.user_id}_{count}"
+            self.guardian_id = f"g{self.student.user_id}"
 
         super().save(*args, **kwargs)
 
@@ -231,7 +236,7 @@ class Guardian(models.Model):
 
 # 功能分類模型
 class Category(models.Model):
-    name = models.CharField(max_length=100)  # 功能分類名稱
+    name = models.CharField(max_length=20)  # 功能分類名稱
     roles = models.CharField(max_length=20, choices=[('teachers', 'Teachers'),('students', 'Students')],null=True,blank=True)  # 審批狀態
     parent_category = models.ForeignKey('self', on_delete=models.CASCADE, null=True, blank=True, related_name='subcategories')  # 父分類，可選
     url = models.CharField(max_length=100,blank=True,null=True)

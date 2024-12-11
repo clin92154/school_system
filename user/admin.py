@@ -11,16 +11,16 @@ class CustomUserAdmin(UserAdmin):
     list_display = ('user_id', 'name', 'first_name', 'last_name', 'role', 'is_active', 'birthday', 'semester')
     list_filter = ('role', 'is_active')
     fieldsets = (
-        (None, {'fields': ('user_id', 'password', 'name', 'first_name', 'last_name', 'birthday', 'role', 'gender', 'class_name', 'semester')}),
+        (None, {'fields': ('user_id', 'name', 'first_name', 'last_name', 'password', 'birthday', 'role', 'gender', 'class_name', 'semester')}),
         ('Permissions', {'fields': ('is_staff', 'is_active', 'is_superuser')}),
     )
     add_fieldsets = (
         (None, {
             'classes': ('wide',),
-            'fields': ('user_id', 'name', 'birthday', 'role', 'is_active')}
+            'fields': ('user_id', 'name', 'first_name', 'last_name', 'gender', 'birthday', 'role', 'is_active')}
         ),
     )
-    search_fields = ('user_id', 'name')
+    search_fields = ('user_id', 'name', 'first_name', 'last_name',)
     ordering = ('user_id',)
 
     def save_model(self, request, obj, form, change):
@@ -28,17 +28,17 @@ class CustomUserAdmin(UserAdmin):
         if not change and not obj.password:
             # 使用生日的月份和日期作為密碼的一部分
             month_day = obj.birthday.strftime("%m%d")
-            default_password = f"{month_day}Django2023!"  # 符合密碼規則的預設密碼
+            default_password = f"{month_day}test!"  # 符合密碼規則的預設密碼
             obj.set_password(default_password)
         super().save_model(request, obj, form, change)
 
         # 自動分配群組
-        # if obj.role == 'admin':
-        #     group = Group.objects.get(name='Admins')
+        if obj.role == 'admin':
+            group = Group.objects.get(name='admins')
         if obj.role == 'teacher':
-            group = Group.objects.get(name='Teachers')
+            group = Group.objects.get(name='teachers')
         elif obj.role == 'student':
-            group = Group.objects.get(name='Students')
+            group = Group.objects.get(name='students')
         else:
             group = None
 
