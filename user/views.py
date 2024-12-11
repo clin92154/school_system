@@ -431,7 +431,7 @@ class CourseManagementView(GenericAPIView):
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
         course = serializer.save(teacher_id=request.user)
-        return Response({'detail': '課程創建成功', 'course_id': course.course_id}, 
+        return Response({'detail': '課程建立成功', 'course_id': course.course_id}, 
                         status=status.HTTP_201_CREATED)
 
     def put(self, request, course_id):

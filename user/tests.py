@@ -22,7 +22,6 @@ class UserModelTests(TestCase):
         except ValidationError:
             self.fail("Valid password failed validation")
 
-
 class UserProfileTests(APITestCase):
     def setUp(self):
         # 建立一個測試用戶
@@ -376,7 +375,6 @@ class LeaveApplicationTeacherTests(APITestCase):
     #     self.assertEqual(response.status_code, status.HTTP_200_OK)
     #     self.assertEqual(response.data['detail'], 'Leave application deleted successfully.')
 
-
 class CourseManagementTests(APITestCase):
 
     
@@ -394,7 +392,7 @@ class CourseManagementTests(APITestCase):
 
         # Create class, semester, and periods
         self.class_obj = Class.objects.create(class_name='A', grade=3, year=2024)
-        self.semester = Semester.objects.create(semester_id='2024A', year=2024, begin_time='2024-11-26',final_time='2025-06-09',term='A')
+        self.semester = Semester.objects.create(semester_id='2024-1', year=2024, begin_time='2024-11-26',final_time='2025-06-09',term='A')
         self.period1 = Period.objects.create(period_number=1, begin_time='09:00', end_time='10:00')
         self.period2 = Period.objects.create(period_number=2, begin_time='10:00', end_time='11:00')
 
@@ -492,6 +490,7 @@ class CourseManagementTests(APITestCase):
         response = self.client.delete(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertFalse(Course.objects.filter(course_id='C003').exists())
+
 
 class GradeManagementTests(APITestCase):
 
@@ -600,7 +599,7 @@ class GradeManagementTests(APITestCase):
         self.assertEqual(response.data[0]['student_id'], self.student_user.user_id)
         self.assertEqual(response.data[0]['rank'], 1)
 
-
+#成績
 class GradeViewTests(APITestCase):
 
     def setUp(self):

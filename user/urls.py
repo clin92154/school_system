@@ -14,8 +14,8 @@ urlpatterns = [
     path('list/courses/', CourseListView.as_view(), name='semester-list'),
 
     #個人檔案模組
-    path('token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
-    path('token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+    path('token/', TokenObtainPairView.as_view(), name='token_obtain_pair'), #可不做
+    path('token/refresh/', TokenRefreshView.as_view(), name='token_refresh'), #可不做
     path('login/', LoginView.as_view(), name='login'),
     path('logout/', LogoutView.as_view(), name='logout'),
     path('reset/password/', ResetPasswordView.as_view(), name='reset-password'),
@@ -32,6 +32,8 @@ urlpatterns = [
     #課程管理
     path('class/<str:class_id>/students/', ClassStudentListView.as_view(), name='class-student-list'), # 班級學生清單,
     path('students/<str:student_id>/', StudentDetailView.as_view(), name='student-detail'), # 指定學生詳細資料
+
+    
     path('course/manage/', CourseManagementView.as_view(), name='course-management'), #管理課程資料
     path('course/manage/<str:course_id>/', CourseManagementView.as_view(), name='course-management-detail'), #管理課程資料
     path('course/<str:course_id>/grade-input/', CourseGradeInputView.as_view(), name='course-grade-input'), #輸入儲存班級學生的成績
