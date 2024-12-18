@@ -93,17 +93,26 @@ class CourseManagementSerializer(serializers.ModelSerializer):
         semester = data['semester']
         periods = data['period']
         day_of_week = data['day_of_week']
-        conflicting_courses = Course.objects.filter(
+        class_id = data['class_id']
+        conflicting_courses1 = Course.objects.filter(
             teacher_id=teacher,
+            semester=semester,
+            period__in=periods,
+            day_of_week=day_of_week
+        )
+
+        conflicting_courses2 = Course.objects.filter(
+            class_id=class_id,
             semester=semester,
             period__in=periods,
             day_of_week=day_of_week
         )
         
         if self.instance:  # 更新時排除自己
-            conflicting_courses = conflicting_courses.exclude(pk=self.instance.pk)
+            conflicting_courses1 = conflicting_courses1.exclude(pk=self.instance.pk)
+            conflicting_courses2 = conflicting_courses2.exclude(pk=self.instance.pk)
             
-        if conflicting_courses.exists():
+        if conflicting_courses1.exists() or conflicting_courses2.exists():
             raise serializers.ValidationError("課程時間衝突")
             
         return data

@@ -12,7 +12,7 @@ class Command(BaseCommand):
         self.create_semesters()
         self.create_classes()
         self.create_teachers(10)
-        self.create_students(10)
+        self.create_students(100)
         self.stdout.write(self.style.SUCCESS('All sample data and groups have been successfully created.'))
 
     def create_groups(self):
@@ -53,7 +53,7 @@ class Command(BaseCommand):
 
     def create_classes(self):
         """創建班級"""
-        for i in range(1, 4):  # 創建三個班級 A, B, C
+        for i in range(1, 10):  # 創建三個班級 A, B, C
             Class.objects.get_or_create(
                 class_name=chr(64 + i),  # A, B, C
                 grade=i,
@@ -83,7 +83,8 @@ class Command(BaseCommand):
                 role='teacher',
                 gender=gender,
                 semester=semester,
-                class_name=class_name
+                class_name=class_name,
+                password='0101Test!'
             )
             teacher.groups.add(Group.objects.get(name='teacher'))
         self.stdout.write(self.style.SUCCESS(f'{count} Teachers created.'))
@@ -110,7 +111,8 @@ class Command(BaseCommand):
                 role='student',
                 gender=gender,
                 semester=semester,
-                class_name=class_name
+                class_name=class_name,
+                password='0101Test!'
             )
             student.groups.add(Group.objects.get(name='student'))
         self.stdout.write(self.style.SUCCESS(f'{count} Students created.'))

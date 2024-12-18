@@ -93,25 +93,27 @@ WSGI_APPLICATION = "school_system.wsgi.application"
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
 
+
+
+
+
+
+
+
+#gcloud sql instances patch yufeng-school --authorized-networks=61.231.137.143
 DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "db.sqlite3",
+    'default': {
+        'ENGINE': 'django.db.backends.mysql',
+        'HOST': '34.80.13.216',
+        'USER': 'chaun',
+        'PASSWORD': '4FZNk#CfZN8e_#[g',
+        'NAME': 'school_db',
+        'PORT':3306
     }
 }
-
-# DATABASES = {
-#     'default': {
-#         'ENGINE': 'django.db.backends.postgresql',
-#         'NAME': 'yufeng_school_sys',  # 你的 PostgreSQL 資料庫名稱
-#         'USER': 'yufeng',      # 你的 PostgreSQL 使用者名稱
-#         'PASSWORD': "<eE@:<L)E'oL8T?C",  # 使用者密碼
-#         'HOST': '/cloudsql/orbital-voyage-444301-m7:asia-east1:yufeng-school-113',   # 伺服器位址，若伺服器在本機則使用 'localhost'
-#         'PORT': '5432',        # PostgreSQL 預設埠號
-#     }
-# }
-
-
+#intance
+#yufeng-school
+#4FZNk#CfZN8e_#[g
 
 # Password validation
 # https://docs.djangoproject.com/en/5.1/ref/settings/#auth-password-validators
@@ -171,6 +173,7 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/5.1/howto/static-files/
 
 STATIC_URL = "static/"
+STATIC_ROOT = os.path.join(BASE_DIR, "static")
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field

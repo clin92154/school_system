@@ -1,0 +1,6 @@
+runtime: python312
+entrypoint: gunicorn -b :$PORT myapp.wsgi
+
+service: django-service
+env_variables:
+  DJANGO_SETTINGS_MODULE: myproject.settings

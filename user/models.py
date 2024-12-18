@@ -16,6 +16,11 @@ class UserManager(BaseUserManager):
         if not user_id:
             raise ValueError('The User ID must be set')
         user = self.model(user_id=user_id, first_name=first_name,last_name=last_name, birthday=birthday, **extra_fields)
+        # 確保 birthday 是 datetime 物件
+        if isinstance(birthday, str):
+            birthday = datetime.strptime(birthday, "%Y-%m-%d").date()
+
+        user = self.model(user_id=user_id, first_name=first_name, last_name=last_name, birthday=birthday, **extra_fields)
         if not password:
             # 使用生日的月份和日期作為密碼的一部分
             month_day = birthday.strftime("%m%d")

@@ -21,6 +21,25 @@ from django.urls import path, re_path, include
 from rest_framework import permissions
 from drf_yasg.views import get_schema_view
 from drf_yasg import openapi
+# 添加 Bearer Token 驗證
+swagger_info = openapi.Info(
+    title="API Documentation",
+    default_version="v1",
+    description="API endpoints requiring Bearer Token.",
+    terms_of_service="https://www.google.com/policies/terms/",
+)
+
+# swagger_settings = {
+#     'SECURITY_DEFINITIONS': {
+#         'Bearer': {
+#             'type': 'apiKey',
+#             'name': 'Authorization',
+#             'in': 'header',
+#         },
+#     },
+# }
+
+
 schema_view = get_schema_view(
     openapi.Info(
         title="School System API",
@@ -33,6 +52,7 @@ schema_view = get_schema_view(
     public=True,
     permission_classes=(permissions.AllowAny,),
 )
+schema_view.with_ui('swagger', cache_timeout=0)
 
 urlpatterns = [
     path('admin/', admin.site.urls),
